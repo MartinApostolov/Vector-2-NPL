@@ -140,6 +140,29 @@ This extension could include:
 The tree-walking interpreter would remain the reference implementation while
 the VM is developed.
 
+### 3.4 Visual Studio Community Extension
+
+A Visual Studio Community extension could make Vector available as an
+installable VSIX package and provide editor integration for `.vec` files.
+
+The initial extension could include:
+
+- Vector file recognition and syntax highlighting
+- Automatic indentation, bracket matching, and comment support
+- Commands to run or check the current Vector file
+- Syntax and semantic diagnostics displayed in the editor
+- Output from the Vector runtime inside Visual Studio
+- Later support for completion, hover information, and navigation through a
+  shared language server
+
+The extension would reuse the existing Vector core, CLI, and diagnostics rather
+than duplicate the interpreter. This would also allow a future
+natural-language layer to generate Vector code, display it for inspection, and
+run it through the same tooling.
+
+A custom Visual Studio project system, integrated debugger, and deployment
+interface are outside the initial extension goal.
+
 ## 4. Experimental Future Direction: Natural-Language Programming
 
 The project concept mentions natural language and vector embeddings. A realistic
@@ -195,7 +218,9 @@ Work will be prioritized in this order:
 2. Complete required language features
 3. Tests, examples, documentation, and diagnostics
 4. Vector-focused built-ins and mathematical operations
-5. Bytecode VM or experimental natural-language translation
+5. Bytecode compiler and virtual machine
+6. Visual Studio Community extension
+7. Experimental natural-language translation
 
 The project will be considered successful when the required interpreter is
 complete and documented, even if the optional extensions are not implemented.
