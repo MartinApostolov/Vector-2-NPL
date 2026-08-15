@@ -3,6 +3,7 @@ using Vector.Core.Lexing;
 using Vector.Core.Source;
 using Vector.Core.Syntax;
 using Vector.Core.Syntax.Expressions;
+using Vector.Core.Syntax.Statements;
 
 namespace Vector.Core.Parsing;
 
@@ -50,6 +51,174 @@ public sealed class Parser
         }
 
         return new ParseResult<ExpressionSyntax>(expression, Diagnostics);
+    }
+
+    public ParseResult<CompilationUnit> ParseCompilationUnit()
+    {
+        var statements = new List<StatementSyntax>();
+
+        while (Current.Kind != TokenKind.EndOfFile)
+        {
+            statements.Add(ParseStatement());
+        }
+
+        var eof = Current;
+        var start = statements.Count > 0 ? statements[0].Span.Start : eof.Span.Start;
+        var unit = new CompilationUnit(
+            statements,
+            new SourceSpan(start, eof.Span.End));
+
+        return new ParseResult<CompilationUnit>(unit, Diagnostics);
+    }
+
+    private StatementSyntax ParseStatement()
+    {
+        return Current.Kind switch
+        {
+            TokenKind.LetKeyword => ParseVariableDeclaration(),
+            TokenKind.OpenBrace => ParseBlockStatement(),
+            TokenKind.IfKeyword => ParseIfStatement(),
+            _ => ParseExpressionStatement()
+        };
+    }
+
+    private VariableDeclaration ParseVariableDeclaration()
+    {
+        var letToken = NextToken();
+
+        string name;
+        if (Current.Kind == TokenKind.Identifier)
+        {
+            var nameToken = NextToken();
+            name = nameToken.Value as string ?? nameToken.Text;
+        }
+        else
+        {
+            ReportUnexpectedToken(Current, "an identifier");
+            name = string.Empty;
+        }
+
+        if (Current.Kind == TokenKind.Equals)
+        {
+            NextToken();
+        }
+        else
+        {
+            ReportUnexpectedToken(Current, "'='");
+        }
+
+        var initializer = ParseAssignmentExpression();
+        var end = ConsumeStatementSemicolon(initializer.Span.End);
+
+        // Invalid declarations still need an AST node so later parser recovery can continue.
+        if (name.Length == 0)
+        {
+            name = "<missing>";
+        }
+
+        return new VariableDeclaration(
+            name,
+            initializer,
+            new SourceSpan(letToken.Span.Start, end));
+    }
+
+    private ExpressionStatement ParseExpressionStatement()
+    {
+        var expression = ParseAssignmentExpression();
+        var end = ConsumeStatementSemicolon(expression.Span.End);
+
+        return new ExpressionStatement(
+            expression,
+            new SourceSpan(expression.Span.Start, end));
+    }
+
+    private BlockStatement ParseBlockStatement()
+    {
+        var openBrace = NextToken();
+        var statements = new List<StatementSyntax>();
+
+        while (Current.Kind != TokenKind.CloseBrace && Current.Kind != TokenKind.EndOfFile)
+        {
+            statements.Add(ParseStatement());
+        }
+
+        var end = statements.Count > 0 ? statements[^1].Span.End : openBrace.Span.End;
+        if (Current.Kind == TokenKind.CloseBrace)
+        {
+            end = NextToken().Span.End;
+        }
+        else
+        {
+            ReportUnexpectedToken(Current, "'}'");
+        }
+
+        return new BlockStatement(
+            statements,
+            new SourceSpan(openBrace.Span.Start, end));
+    }
+
+    private IfStatement ParseIfStatement()
+    {
+        var ifToken = NextToken();
+        var condition = ParseAssignmentExpression();
+        var thenBranch = ParseRequiredBlock();
+        StatementSyntax? elseBranch = null;
+
+        if (Current.Kind == TokenKind.ElseKeyword)
+        {
+            NextToken();
+
+            if (Current.Kind == TokenKind.IfKeyword)
+            {
+                elseBranch = ParseIfStatement();
+            }
+            else if (Current.Kind == TokenKind.OpenBrace)
+            {
+                elseBranch = ParseBlockStatement();
+            }
+            else
+            {
+                ReportUnexpectedToken(Current, "'if' or '{'");
+                elseBranch = CreateMissingBlock(Current.Span);
+            }
+        }
+
+        var end = elseBranch?.Span.End ?? thenBranch.Span.End;
+        return new IfStatement(
+            condition,
+            thenBranch,
+            elseBranch,
+            new SourceSpan(ifToken.Span.Start, end));
+    }
+
+    private BlockStatement ParseRequiredBlock()
+    {
+        if (Current.Kind == TokenKind.OpenBrace)
+        {
+            return ParseBlockStatement();
+        }
+
+        ReportUnexpectedToken(Current, "'{'");
+        return CreateMissingBlock(Current.Span);
+    }
+
+    private static BlockStatement CreateMissingBlock(SourceSpan span)
+    {
+        var position = span.Start;
+        return new BlockStatement(
+            Array.Empty<StatementSyntax>(),
+            new SourceSpan(position, position));
+    }
+
+    private SourcePosition ConsumeStatementSemicolon(SourcePosition fallbackEnd)
+    {
+        if (Current.Kind == TokenKind.Semicolon)
+        {
+            return NextToken().Span.End;
+        }
+
+        ReportUnexpectedToken(Current, "';'");
+        return fallbackEnd;
     }
 
     private ExpressionSyntax ParseAssignmentExpression()
