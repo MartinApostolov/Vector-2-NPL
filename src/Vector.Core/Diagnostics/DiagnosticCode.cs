@@ -14,5 +14,6 @@ public enum DiagnosticCode
     UnterminatedBlockComment,
     UnexpectedToken,
     ExpectedExpression,
-    InvalidAssignmentTarget
+    InvalidAssignmentTarget,
+    InvalidLoopControl
 }

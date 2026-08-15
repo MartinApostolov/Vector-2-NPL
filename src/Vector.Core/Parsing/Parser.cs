@@ -14,6 +14,7 @@ public sealed class Parser
 {
     private readonly List<Token> _tokens = new();
     private int _position;
+    private int _loopDepth;
 
     public Parser(SourceText source)
     {
@@ -78,6 +79,10 @@ public sealed class Parser
             TokenKind.LetKeyword => ParseVariableDeclaration(),
             TokenKind.OpenBrace => ParseBlockStatement(),
             TokenKind.IfKeyword => ParseIfStatement(),
+            TokenKind.WhileKeyword => ParseWhileStatement(),
+            TokenKind.ForKeyword => ParseForStatement(),
+            TokenKind.BreakKeyword => ParseBreakStatement(),
+            TokenKind.ContinueKeyword => ParseContinueStatement(),
             _ => ParseExpressionStatement()
         };
     }
@@ -189,6 +194,107 @@ public sealed class Parser
             thenBranch,
             elseBranch,
             new SourceSpan(ifToken.Span.Start, end));
+    }
+
+    private WhileStatement ParseWhileStatement()
+    {
+        var whileToken = NextToken();
+        var condition = ParseAssignmentExpression();
+
+        _loopDepth++;
+        BlockStatement body;
+        try
+        {
+            body = ParseRequiredBlock();
+        }
+        finally
+        {
+            _loopDepth--;
+        }
+
+        return new WhileStatement(
+            condition,
+            body,
+            new SourceSpan(whileToken.Span.Start, body.Span.End));
+    }
+
+    private ForStatement ParseForStatement()
+    {
+        var forToken = NextToken();
+
+        string variableName;
+        if (Current.Kind == TokenKind.Identifier)
+        {
+            var nameToken = NextToken();
+            variableName = nameToken.Value as string ?? nameToken.Text;
+        }
+        else
+        {
+            ReportUnexpectedToken(Current, "an identifier");
+            variableName = "<missing>";
+        }
+
+        if (Current.Kind == TokenKind.InKeyword)
+        {
+            NextToken();
+        }
+        else
+        {
+            ReportUnexpectedToken(Current, "'in'");
+        }
+
+        var iterable = ParseAssignmentExpression();
+
+        _loopDepth++;
+        BlockStatement body;
+        try
+        {
+            body = ParseRequiredBlock();
+        }
+        finally
+        {
+            _loopDepth--;
+        }
+
+        return new ForStatement(
+            variableName,
+            iterable,
+            body,
+            new SourceSpan(forToken.Span.Start, body.Span.End));
+    }
+
+    private BreakStatement ParseBreakStatement()
+    {
+        var keyword = NextToken();
+        var end = ConsumeStatementSemicolon(keyword.Span.End);
+
+        if (_loopDepth == 0)
+        {
+            Diagnostics.Report(
+                DiagnosticCode.InvalidLoopControl,
+                "'break' can only be used inside a loop.",
+                DiagnosticSeverity.Error,
+                keyword.Span);
+        }
+
+        return new BreakStatement(new SourceSpan(keyword.Span.Start, end));
+    }
+
+    private ContinueStatement ParseContinueStatement()
+    {
+        var keyword = NextToken();
+        var end = ConsumeStatementSemicolon(keyword.Span.End);
+
+        if (_loopDepth == 0)
+        {
+            Diagnostics.Report(
+                DiagnosticCode.InvalidLoopControl,
+                "'continue' can only be used inside a loop.",
+                DiagnosticSeverity.Error,
+                keyword.Span);
+        }
+
+        return new ContinueStatement(new SourceSpan(keyword.Span.Start, end));
     }
 
     private BlockStatement ParseRequiredBlock()
