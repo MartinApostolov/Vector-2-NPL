@@ -53,12 +53,16 @@ Potential stretch goals include first-class vector and matrix operations,
 additional built-in functions, and a bytecode compiler with a stack-based
 virtual machine.
 
-See [Project Scope](docs/PROJECT_SCOPE.md) for the detailed goals, boundaries,
-and stretch goals.
+See the [Project Scope](docs/PROJECT_SCOPE.md) for the committed deliverables,
+boundaries, and stretch-goal priority. See the
+[Vector Language Specification](docs/LANGUAGE_SPEC.md) for the formal syntax,
+semantics, runtime value model, module design, and future-facing language rules.
+Where the language specification describes functionality beyond the committed
+MVP, the Project Scope remains authoritative for implementation priority.
 
 ## Project Status
 
-Planning and language design.
+Language design specified; implementation setup is next.
 
 ## Running the Project
 
