@@ -6,5 +6,6 @@ namespace Vector.Core.Diagnostics;
 /// </summary>
 public enum DiagnosticCode
 {
-    Unspecified = 0
+    Unspecified = 0,
+    InvalidCharacter
 }
