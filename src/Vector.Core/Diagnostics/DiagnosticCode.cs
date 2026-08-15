@@ -11,5 +11,8 @@ public enum DiagnosticCode
     MalformedNumber,
     InvalidEscapeSequence,
     UnterminatedString,
-    UnterminatedBlockComment
+    UnterminatedBlockComment,
+    UnexpectedToken,
+    ExpectedExpression,
+    InvalidAssignmentTarget
 }
