@@ -15,6 +15,9 @@ public sealed class Parser
     private readonly List<Token> _tokens = new();
     private int _position;
     private int _loopDepth;
+    private int _functionDepth;
+    private int _blockDepth;
+    private bool _seenNonImportTopLevel;
 
     public Parser(SourceText source)
     {
@@ -60,6 +63,11 @@ public sealed class Parser
 
         while (Current.Kind != TokenKind.EndOfFile)
         {
+            if (Current.Kind != TokenKind.ImportKeyword)
+            {
+                _seenNonImportTopLevel = true;
+            }
+
             statements.Add(ParseStatement());
         }
 
@@ -81,8 +89,11 @@ public sealed class Parser
             TokenKind.IfKeyword => ParseIfStatement(),
             TokenKind.WhileKeyword => ParseWhileStatement(),
             TokenKind.ForKeyword => ParseForStatement(),
+            TokenKind.FunctionKeyword => ParseFunctionDeclaration(),
+            TokenKind.ReturnKeyword => ParseReturnStatement(),
             TokenKind.BreakKeyword => ParseBreakStatement(),
             TokenKind.ContinueKeyword => ParseContinueStatement(),
+            TokenKind.ImportKeyword => ParseImportStatement(),
             _ => ParseExpressionStatement()
         };
     }
@@ -142,9 +153,17 @@ public sealed class Parser
         var openBrace = NextToken();
         var statements = new List<StatementSyntax>();
 
-        while (Current.Kind != TokenKind.CloseBrace && Current.Kind != TokenKind.EndOfFile)
+        _blockDepth++;
+        try
         {
-            statements.Add(ParseStatement());
+            while (Current.Kind != TokenKind.CloseBrace && Current.Kind != TokenKind.EndOfFile)
+            {
+                statements.Add(ParseStatement());
+            }
+        }
+        finally
+        {
+            _blockDepth--;
         }
 
         var end = statements.Count > 0 ? statements[^1].Span.End : openBrace.Span.End;
@@ -261,6 +280,190 @@ public sealed class Parser
             iterable,
             body,
             new SourceSpan(forToken.Span.Start, body.Span.End));
+    }
+
+    private FunctionDeclaration ParseFunctionDeclaration()
+    {
+        var functionToken = NextToken();
+
+        string name;
+        if (Current.Kind == TokenKind.Identifier)
+        {
+            var nameToken = NextToken();
+            name = nameToken.Value as string ?? nameToken.Text;
+        }
+        else
+        {
+            ReportUnexpectedToken(Current, "an identifier");
+            name = "<missing>";
+        }
+
+        if (Current.Kind == TokenKind.OpenParen)
+        {
+            NextToken();
+        }
+        else
+        {
+            ReportUnexpectedToken(Current, "'('");
+        }
+
+        var parameters = new List<string>();
+        var parameterNames = new HashSet<string>(StringComparer.Ordinal);
+
+        if (Current.Kind != TokenKind.CloseParen && Current.Kind != TokenKind.EndOfFile)
+        {
+            while (true)
+            {
+                if (Current.Kind == TokenKind.Identifier)
+                {
+                    var parameterToken = NextToken();
+                    var parameterName = parameterToken.Value as string ?? parameterToken.Text;
+                    parameters.Add(parameterName);
+
+                    if (!parameterNames.Add(parameterName))
+                    {
+                        Diagnostics.Report(
+                            DiagnosticCode.DuplicateParameter,
+                            $"Function parameter '{parameterName}' is declared more than once.",
+                            DiagnosticSeverity.Error,
+                            parameterToken.Span);
+                    }
+                }
+                else
+                {
+                    ReportUnexpectedToken(Current, "a parameter identifier");
+
+                    if (Current.Kind != TokenKind.Comma
+                        && Current.Kind != TokenKind.CloseParen
+                        && Current.Kind != TokenKind.OpenBrace
+                        && Current.Kind != TokenKind.EndOfFile)
+                    {
+                        NextToken();
+                    }
+                }
+
+                if (Current.Kind != TokenKind.Comma)
+                {
+                    break;
+                }
+
+                NextToken();
+            }
+        }
+
+        if (Current.Kind == TokenKind.CloseParen)
+        {
+            NextToken();
+        }
+        else
+        {
+            ReportUnexpectedToken(Current, "')'");
+        }
+
+        var enclosingLoopDepth = _loopDepth;
+        _loopDepth = 0;
+        _functionDepth++;
+
+        BlockStatement body;
+        try
+        {
+            body = ParseRequiredBlock();
+        }
+        finally
+        {
+            _functionDepth--;
+            _loopDepth = enclosingLoopDepth;
+        }
+
+        return new FunctionDeclaration(
+            name,
+            parameters,
+            body,
+            new SourceSpan(functionToken.Span.Start, body.Span.End));
+    }
+
+    private ReturnStatement ParseReturnStatement()
+    {
+        var returnToken = NextToken();
+
+        ExpressionSyntax? expression = null;
+        SourcePosition end;
+
+        if (Current.Kind == TokenKind.Semicolon)
+        {
+            end = NextToken().Span.End;
+        }
+        else
+        {
+            expression = ParseAssignmentExpression();
+            end = ConsumeStatementSemicolon(expression.Span.End);
+        }
+
+        if (_functionDepth == 0)
+        {
+            Diagnostics.Report(
+                DiagnosticCode.InvalidReturn,
+                "'return' can only be used inside a function.",
+                DiagnosticSeverity.Error,
+                returnToken.Span);
+        }
+
+        return new ReturnStatement(
+            expression,
+            new SourceSpan(returnToken.Span.Start, end));
+    }
+
+    private ImportStatement ParseImportStatement()
+    {
+        var importToken = NextToken();
+        var pathSegments = new List<string>();
+
+        if (Current.Kind == TokenKind.Identifier)
+        {
+            pathSegments.Add(GetIdentifierValue(NextToken()));
+        }
+        else
+        {
+            ReportUnexpectedToken(Current, "an import path identifier");
+            pathSegments.Add("<missing>");
+        }
+
+        while (Current.Kind == TokenKind.Dot)
+        {
+            NextToken();
+
+            if (Current.Kind != TokenKind.Identifier)
+            {
+                ReportUnexpectedToken(Current, "an identifier after '.'");
+                break;
+            }
+
+            pathSegments.Add(GetIdentifierValue(NextToken()));
+        }
+
+        var fallbackEnd = Current.Span.Start;
+        var end = ConsumeStatementSemicolon(fallbackEnd);
+
+        if (_blockDepth > 0)
+        {
+            Diagnostics.Report(
+                DiagnosticCode.InvalidImportPlacement,
+                "Imports are only allowed at module level.",
+                DiagnosticSeverity.Error,
+                importToken.Span);
+        }
+        else if (_seenNonImportTopLevel)
+        {
+            Diagnostics.Report(
+                DiagnosticCode.InvalidImportPlacement,
+                "Imports must appear before other top-level statements and declarations.",
+                DiagnosticSeverity.Error,
+                importToken.Span);
+        }
+
+        return new ImportStatement(
+            pathSegments,
+            new SourceSpan(importToken.Span.Start, end));
     }
 
     private BreakStatement ParseBreakStatement()
@@ -399,6 +602,13 @@ public sealed class Parser
 
         while (true)
         {
+            if (Current.Kind == TokenKind.Dot
+                && expression is NameExpression or QualifiedNameExpression)
+            {
+                expression = ParseQualifiedNameExpression(expression);
+                continue;
+            }
+
             if (Current.Kind == TokenKind.OpenParen)
             {
                 expression = ParseCallExpression(expression);
@@ -460,6 +670,37 @@ public sealed class Parser
             default:
                 return ParseMissingExpression();
         }
+    }
+
+    private ExpressionSyntax ParseQualifiedNameExpression(ExpressionSyntax target)
+    {
+        var pathSegments = target switch
+        {
+            NameExpression name => new List<string> { name.Name },
+            QualifiedNameExpression qualified => qualified.PathSegments.ToList(),
+            _ => throw new InvalidOperationException("Qualified names must begin with an identifier.")
+        };
+
+        var end = target.Span.End;
+
+        while (Current.Kind == TokenKind.Dot)
+        {
+            NextToken();
+
+            if (Current.Kind != TokenKind.Identifier)
+            {
+                ReportUnexpectedToken(Current, "an identifier after '.'");
+                break;
+            }
+
+            var segmentToken = NextToken();
+            pathSegments.Add(GetIdentifierValue(segmentToken));
+            end = segmentToken.Span.End;
+        }
+
+        return pathSegments.Count > 1
+            ? new QualifiedNameExpression(pathSegments, new SourceSpan(target.Span.Start, end))
+            : target;
     }
 
     private ExpressionSyntax ParseGroupingExpression()
@@ -619,6 +860,9 @@ public sealed class Parser
             DiagnosticSeverity.Error,
             token.Span);
     }
+
+    private static string GetIdentifierValue(Token token) =>
+        token.Value as string ?? token.Text;
 
     private static string Describe(Token token) =>
         token.Kind == TokenKind.EndOfFile ? "end of file" : $"'{token.Text}'";

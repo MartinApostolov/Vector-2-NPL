@@ -15,5 +15,8 @@ public enum DiagnosticCode
     UnexpectedToken,
     ExpectedExpression,
     InvalidAssignmentTarget,
-    InvalidLoopControl
+    InvalidLoopControl,
+    InvalidReturn,
+    DuplicateParameter,
+    InvalidImportPlacement
 }
