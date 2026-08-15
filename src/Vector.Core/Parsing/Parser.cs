@@ -68,7 +68,7 @@ public sealed class Parser
                 _seenNonImportTopLevel = true;
             }
 
-            statements.Add(ParseStatement());
+            statements.Add(ParseStatementRecovering());
         }
 
         var eof = Current;
@@ -78,6 +78,24 @@ public sealed class Parser
             new SourceSpan(start, eof.Span.End));
 
         return new ParseResult<CompilationUnit>(unit, Diagnostics);
+    }
+
+    private StatementSyntax ParseStatementRecovering()
+    {
+        var startPosition = _position;
+        var statement = ParseStatement();
+
+        // Error recovery must always make progress. Most parser routines consume at
+        // least one token themselves, but a preserved delimiter such as a stray '}'
+        // can intentionally leave Current unchanged so an enclosing construct can use it.
+        // At the compilation-unit level there is no enclosing construct, so consume one
+        // token rather than risking an infinite recovery loop.
+        if (_position == startPosition && Current.Kind != TokenKind.EndOfFile)
+        {
+            NextToken();
+        }
+
+        return statement;
     }
 
     private StatementSyntax ParseStatement()
@@ -124,7 +142,7 @@ public sealed class Parser
         }
 
         var initializer = ParseAssignmentExpression();
-        var end = ConsumeStatementSemicolon(initializer.Span.End);
+        var end = ConsumeStatementSemicolon(initializer.Span.End, "after a variable declaration");
 
         // Invalid declarations still need an AST node so later parser recovery can continue.
         if (name.Length == 0)
@@ -141,7 +159,7 @@ public sealed class Parser
     private ExpressionStatement ParseExpressionStatement()
     {
         var expression = ParseAssignmentExpression();
-        var end = ConsumeStatementSemicolon(expression.Span.End);
+        var end = ConsumeStatementSemicolon(expression.Span.End, "after an expression statement");
 
         return new ExpressionStatement(
             expression,
@@ -158,7 +176,7 @@ public sealed class Parser
         {
             while (Current.Kind != TokenKind.CloseBrace && Current.Kind != TokenKind.EndOfFile)
             {
-                statements.Add(ParseStatement());
+                statements.Add(ParseStatementRecovering());
             }
         }
         finally
@@ -310,45 +328,60 @@ public sealed class Parser
         var parameters = new List<string>();
         var parameterNames = new HashSet<string>(StringComparer.Ordinal);
 
-        if (Current.Kind != TokenKind.CloseParen && Current.Kind != TokenKind.EndOfFile)
+        while (Current.Kind != TokenKind.CloseParen
+            && Current.Kind != TokenKind.OpenBrace
+            && Current.Kind != TokenKind.EndOfFile)
         {
-            while (true)
+            if (Current.Kind == TokenKind.Identifier)
             {
-                if (Current.Kind == TokenKind.Identifier)
-                {
-                    var parameterToken = NextToken();
-                    var parameterName = parameterToken.Value as string ?? parameterToken.Text;
-                    parameters.Add(parameterName);
+                var parameterToken = NextToken();
+                var parameterName = parameterToken.Value as string ?? parameterToken.Text;
+                parameters.Add(parameterName);
 
-                    if (!parameterNames.Add(parameterName))
-                    {
-                        Diagnostics.Report(
-                            DiagnosticCode.DuplicateParameter,
-                            $"Function parameter '{parameterName}' is declared more than once.",
-                            DiagnosticSeverity.Error,
-                            parameterToken.Span);
-                    }
+                if (!parameterNames.Add(parameterName))
+                {
+                    Diagnostics.Report(
+                        DiagnosticCode.DuplicateParameter,
+                        $"Function parameter '{parameterName}' is declared more than once.",
+                        DiagnosticSeverity.Error,
+                        parameterToken.Span);
                 }
-                else
-                {
-                    ReportUnexpectedToken(Current, "a parameter identifier");
+            }
+            else
+            {
+                ReportUnexpectedToken(Current, "a parameter identifier");
+                SynchronizeParameterList();
+            }
 
-                    if (Current.Kind != TokenKind.Comma
-                        && Current.Kind != TokenKind.CloseParen
-                        && Current.Kind != TokenKind.OpenBrace
-                        && Current.Kind != TokenKind.EndOfFile)
-                    {
-                        NextToken();
-                    }
-                }
+            if (Current.Kind == TokenKind.Comma)
+            {
+                NextToken();
 
-                if (Current.Kind != TokenKind.Comma)
+                if (Current.Kind is TokenKind.CloseParen or TokenKind.OpenBrace or TokenKind.EndOfFile)
                 {
+                    ReportUnexpectedToken(Current, "a parameter identifier after ','");
                     break;
                 }
 
-                NextToken();
+                continue;
             }
+
+            if (Current.Kind is TokenKind.CloseParen or TokenKind.OpenBrace or TokenKind.EndOfFile)
+            {
+                break;
+            }
+
+            // An identifier here is a strong signal that the comma between two
+            // parameters was omitted. Preserve it so the next iteration can still
+            // recover the parameter itself instead of discarding the rest of the list.
+            if (Current.Kind == TokenKind.Identifier)
+            {
+                ReportUnexpectedToken(Current, "',' or ')' between parameters");
+                continue;
+            }
+
+            ReportUnexpectedToken(Current, "',' or ')' after a parameter");
+            SynchronizeParameterList();
         }
 
         if (Current.Kind == TokenKind.CloseParen)
@@ -357,7 +390,7 @@ public sealed class Parser
         }
         else
         {
-            ReportUnexpectedToken(Current, "')'");
+            ReportUnexpectedToken(Current, "')' to close the parameter list");
         }
 
         var enclosingLoopDepth = _loopDepth;
@@ -396,7 +429,7 @@ public sealed class Parser
         else
         {
             expression = ParseAssignmentExpression();
-            end = ConsumeStatementSemicolon(expression.Span.End);
+            end = ConsumeStatementSemicolon(expression.Span.End, "after a return statement");
         }
 
         if (_functionDepth == 0)
@@ -442,7 +475,7 @@ public sealed class Parser
         }
 
         var fallbackEnd = Current.Span.Start;
-        var end = ConsumeStatementSemicolon(fallbackEnd);
+        var end = ConsumeStatementSemicolon(fallbackEnd, "after an import statement");
 
         if (_blockDepth > 0)
         {
@@ -469,7 +502,7 @@ public sealed class Parser
     private BreakStatement ParseBreakStatement()
     {
         var keyword = NextToken();
-        var end = ConsumeStatementSemicolon(keyword.Span.End);
+        var end = ConsumeStatementSemicolon(keyword.Span.End, "after a break statement");
 
         if (_loopDepth == 0)
         {
@@ -486,7 +519,7 @@ public sealed class Parser
     private ContinueStatement ParseContinueStatement()
     {
         var keyword = NextToken();
-        var end = ConsumeStatementSemicolon(keyword.Span.End);
+        var end = ConsumeStatementSemicolon(keyword.Span.End, "after a continue statement");
 
         if (_loopDepth == 0)
         {
@@ -519,16 +552,59 @@ public sealed class Parser
             new SourceSpan(position, position));
     }
 
-    private SourcePosition ConsumeStatementSemicolon(SourcePosition fallbackEnd)
+    private SourcePosition ConsumeStatementSemicolon(SourcePosition fallbackEnd, string context)
     {
         if (Current.Kind == TokenKind.Semicolon)
         {
             return NextToken().Span.End;
         }
 
-        ReportUnexpectedToken(Current, "';'");
-        return fallbackEnd;
+        ReportUnexpectedToken(Current, $"';' {context}");
+
+        // A declaration/control keyword or brace is an unambiguous start/boundary of
+        // another statement. Leave it untouched so the outer statement loop can keep
+        // parsing useful later code. Otherwise discard the malformed tail through a
+        // semicolon (or until a strong boundary) to avoid turning fragments of one bad
+        // statement into a cascade of fake statements.
+        var end = fallbackEnd;
+        while (Current.Kind != TokenKind.EndOfFile
+            && Current.Kind != TokenKind.CloseBrace
+            && !IsDefiniteStatementStart(Current.Kind))
+        {
+            var skipped = NextToken();
+            end = skipped.Span.End;
+
+            if (skipped.Kind == TokenKind.Semicolon)
+            {
+                break;
+            }
+        }
+
+        return end;
     }
+
+    private void SynchronizeParameterList()
+    {
+        while (Current.Kind != TokenKind.Comma
+            && Current.Kind != TokenKind.CloseParen
+            && Current.Kind != TokenKind.OpenBrace
+            && Current.Kind != TokenKind.EndOfFile)
+        {
+            NextToken();
+        }
+    }
+
+    private static bool IsDefiniteStatementStart(TokenKind kind) =>
+        kind is TokenKind.LetKeyword
+            or TokenKind.OpenBrace
+            or TokenKind.IfKeyword
+            or TokenKind.WhileKeyword
+            or TokenKind.ForKeyword
+            or TokenKind.FunctionKeyword
+            or TokenKind.ReturnKeyword
+            or TokenKind.BreakKeyword
+            or TokenKind.ContinueKeyword
+            or TokenKind.ImportKeyword;
 
     private ExpressionSyntax ParseAssignmentExpression()
     {
@@ -841,7 +917,10 @@ public sealed class Parser
             DiagnosticSeverity.Error,
             token.Span);
 
-        if (token.Kind != TokenKind.EndOfFile)
+        // Preserve delimiters and block boundaries. They usually belong to the
+        // construct that called the expression parser, and consuming them here causes
+        // secondary "missing delimiter" diagnostics that hide the original error.
+        if (!IsExpressionRecoveryBoundary(token.Kind))
         {
             NextToken();
         }
@@ -860,6 +939,15 @@ public sealed class Parser
             DiagnosticSeverity.Error,
             token.Span);
     }
+
+    private static bool IsExpressionRecoveryBoundary(TokenKind kind) =>
+        kind is TokenKind.Semicolon
+            or TokenKind.Comma
+            or TokenKind.OpenBrace
+            or TokenKind.CloseBrace
+            or TokenKind.CloseParen
+            or TokenKind.CloseBracket
+            or TokenKind.EndOfFile;
 
     private static string GetIdentifierValue(Token token) =>
         token.Value as string ?? token.Text;
