@@ -10,5 +10,6 @@ public enum DiagnosticCode
     InvalidCharacter,
     MalformedNumber,
     InvalidEscapeSequence,
-    UnterminatedString
+    UnterminatedString,
+    UnterminatedBlockComment
 }

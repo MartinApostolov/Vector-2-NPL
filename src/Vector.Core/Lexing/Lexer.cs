@@ -22,7 +22,7 @@ public sealed class Lexer
 
     public Token Lex()
     {
-        SkipWhitespace();
+        SkipTrivia();
 
         if (_position >= _source.Length)
         {
@@ -381,12 +381,62 @@ public sealed class Lexer
         }
     }
 
-    private void SkipWhitespace()
+    private void SkipTrivia()
     {
-        while (_position < _source.Length && char.IsWhiteSpace(_source[_position]))
+        while (true)
         {
-            _position++;
+            while (_position < _source.Length && char.IsWhiteSpace(_source[_position]))
+            {
+                _position++;
+            }
+
+            if (Peek(0) == '/' && Peek(1) == '/')
+            {
+                SkipLineComment();
+                continue;
+            }
+
+            if (Peek(0) == '/' && Peek(1) == '*')
+            {
+                SkipBlockComment();
+                continue;
+            }
+
+            return;
         }
+    }
+
+    private void SkipLineComment()
+    {
+        _position += 2;
+
+        while (_position < _source.Length && _source[_position] is not '\r' and not '\n')
+        {
+            _position += GetScalarLength(_position);
+        }
+    }
+
+    private void SkipBlockComment()
+    {
+        var start = _position;
+        _position += 2;
+
+        while (_position < _source.Length)
+        {
+            if (Peek(0) == '*' && Peek(1) == '/')
+            {
+                _position += 2;
+                return;
+            }
+
+            _position += GetScalarLength(_position);
+        }
+
+        Diagnostics.Report(
+            DiagnosticCode.UnterminatedBlockComment,
+            "Unterminated block comment.",
+            DiagnosticSeverity.Error,
+            _source.GetSpan(start, _position));
     }
 
     private bool IsIdentifierStart(int index)
