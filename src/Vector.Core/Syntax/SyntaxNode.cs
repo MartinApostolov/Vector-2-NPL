@@ -25,3 +25,14 @@ public abstract class ExpressionSyntax : SyntaxNode
     {
     }
 }
+
+/// <summary>
+/// Base type for executable or declarative statement syntax.
+/// </summary>
+public abstract class StatementSyntax : SyntaxNode
+{
+    protected StatementSyntax(SourceSpan span)
+        : base(span)
+    {
+    }
+}
