@@ -1,0 +1,30 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.Core", "src\Vector.Core\Vector.Core.csproj", "{2A983989-89B0-4F90-8A63-894A7851B101}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.Cli", "src\Vector.Cli\Vector.Cli.csproj", "{9B99A725-7F02-4D07-8D7F-3F1A17A95656}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.Tests", "tests\Vector.Tests\Vector.Tests.csproj", "{14373CC9-5DB0-45AE-828E-5D7CC2275701}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2A983989-89B0-4F90-8A63-894A7851B101}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A983989-89B0-4F90-8A63-894A7851B101}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A983989-89B0-4F90-8A63-894A7851B101}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A983989-89B0-4F90-8A63-894A7851B101}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9B99A725-7F02-4D07-8D7F-3F1A17A95656}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9B99A725-7F02-4D07-8D7F-3F1A17A95656}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9B99A725-7F02-4D07-8D7F-3F1A17A95656}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9B99A725-7F02-4D07-8D7F-3F1A17A95656}.Release|Any CPU.Build.0 = Release|Any CPU
+		{14373CC9-5DB0-45AE-828E-5D7CC2275701}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{14373CC9-5DB0-45AE-828E-5D7CC2275701}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{14373CC9-5DB0-45AE-828E-5D7CC2275701}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{14373CC9-5DB0-45AE-828E-5D7CC2275701}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
