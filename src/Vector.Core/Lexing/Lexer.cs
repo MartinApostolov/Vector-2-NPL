@@ -39,6 +39,21 @@ public sealed class Lexer
             return LexIdentifierOrKeyword();
         }
 
+        if (IsAsciiDigit(_source[_position]))
+        {
+            return LexNumber();
+        }
+
+        if (_source[_position] == '"')
+        {
+            return LexString();
+        }
+
+        if (_source[_position] == '.' && IsAsciiDigit(Peek(1)))
+        {
+            return LexLeadingDotNumber();
+        }
+
         var start = _position;
         var kind = LexOperatorOrPunctuation();
         if (kind != TokenKind.BadToken)
@@ -76,6 +91,177 @@ public sealed class Lexer
         var value = kind == TokenKind.Identifier ? normalized : null;
 
         return CreateToken(kind, start, _position, value);
+    }
+
+    private Token LexNumber()
+    {
+        var start = _position;
+        ConsumeAsciiDigits();
+
+        if (Peek(0) == '.')
+        {
+            _position++;
+
+            if (!IsAsciiDigit(Peek(0)))
+            {
+                return CreateMalformedNumberToken(start, _position);
+            }
+
+            ConsumeAsciiDigits();
+        }
+
+        if (Peek(0) is 'e' or 'E')
+        {
+            _position++;
+
+            if (Peek(0) is '+' or '-')
+            {
+                _position++;
+            }
+
+            if (!IsAsciiDigit(Peek(0)))
+            {
+                return CreateMalformedNumberToken(start, _position);
+            }
+
+            ConsumeAsciiDigits();
+        }
+
+        var text = _source.Text[start.._position];
+        if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            || !double.IsFinite(value))
+        {
+            return CreateMalformedNumberToken(start, _position);
+        }
+
+        return CreateToken(TokenKind.Number, start, _position, value);
+    }
+
+    private Token LexLeadingDotNumber()
+    {
+        var start = _position;
+        _position++;
+        ConsumeAsciiDigits();
+
+        if (Peek(0) is 'e' or 'E')
+        {
+            _position++;
+
+            if (Peek(0) is '+' or '-')
+            {
+                _position++;
+            }
+
+            ConsumeAsciiDigits();
+        }
+
+        return CreateMalformedNumberToken(start, _position);
+    }
+
+    private Token CreateMalformedNumberToken(int start, int end)
+    {
+        var span = _source.GetSpan(start, end);
+        var text = _source.Text[start..end];
+
+        Diagnostics.Report(
+            DiagnosticCode.MalformedNumber,
+            $"Malformed number literal '{text}'.",
+            DiagnosticSeverity.Error,
+            span);
+
+        return new Token(TokenKind.BadToken, text, null, span);
+    }
+
+    private Token LexString()
+    {
+        var start = _position;
+        _position++;
+        var value = new StringBuilder();
+
+        while (_position < _source.Length)
+        {
+            var current = _source[_position];
+
+            if (current == '"')
+            {
+                _position++;
+                return CreateToken(TokenKind.String, start, _position, value.ToString());
+            }
+
+            if (current is '\r' or '\n')
+            {
+                return CreateUnterminatedStringToken(start);
+            }
+
+            if (current == '\\')
+            {
+                var escapeStart = _position;
+                _position++;
+
+                if (_position >= _source.Length || _source[_position] is '\r' or '\n')
+                {
+                    return CreateUnterminatedStringToken(start);
+                }
+
+                switch (_source[_position])
+                {
+                    case '"':
+                        value.Append('"');
+                        _position++;
+                        break;
+                    case '\\':
+                        value.Append('\\');
+                        _position++;
+                        break;
+                    case 'n':
+                        value.Append('\n');
+                        _position++;
+                        break;
+                    case 'r':
+                        value.Append('\r');
+                        _position++;
+                        break;
+                    case 't':
+                        value.Append('\t');
+                        _position++;
+                        break;
+                    default:
+                        var escapedLength = GetScalarLength(_position);
+                        var escapedText = _source.Text.Substring(_position, escapedLength);
+                        _position += escapedLength;
+                        value.Append(escapedText);
+
+                        Diagnostics.Report(
+                            DiagnosticCode.InvalidEscapeSequence,
+                            $"Unknown escape sequence '\\{escapedText}'.",
+                            DiagnosticSeverity.Error,
+                            _source.GetSpan(escapeStart, _position));
+                        break;
+                }
+
+                continue;
+            }
+
+            var scalarLength = GetScalarLength(_position);
+            value.Append(_source.Text, _position, scalarLength);
+            _position += scalarLength;
+        }
+
+        return CreateUnterminatedStringToken(start);
+    }
+
+    private Token CreateUnterminatedStringToken(int start)
+    {
+        var span = _source.GetSpan(start, _position);
+        var text = _source.Text[start.._position];
+
+        Diagnostics.Report(
+            DiagnosticCode.UnterminatedString,
+            "Unterminated string literal.",
+            DiagnosticSeverity.Error,
+            span);
+
+        return new Token(TokenKind.BadToken, text, null, span);
     }
 
     private TokenKind LexOperatorOrPunctuation()
@@ -187,6 +373,14 @@ public sealed class Lexer
         return index < _source.Length ? _source[index] : null;
     }
 
+    private void ConsumeAsciiDigits()
+    {
+        while (IsAsciiDigit(Peek(0)))
+        {
+            _position++;
+        }
+    }
+
     private void SkipWhitespace()
     {
         while (_position < _source.Length && char.IsWhiteSpace(_source[_position]))
@@ -232,6 +426,11 @@ public sealed class Lexer
             or UnicodeCategory.TitlecaseLetter
             or UnicodeCategory.ModifierLetter
             or UnicodeCategory.OtherLetter;
+    }
+
+    private static bool IsAsciiDigit(char? value)
+    {
+        return value is >= '0' and <= '9';
     }
 
     private int GetScalarLength(int index)

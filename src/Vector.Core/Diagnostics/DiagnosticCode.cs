@@ -7,5 +7,8 @@ namespace Vector.Core.Diagnostics;
 public enum DiagnosticCode
 {
     Unspecified = 0,
-    InvalidCharacter
+    InvalidCharacter,
+    MalformedNumber,
+    InvalidEscapeSequence,
+    UnterminatedString
 }
