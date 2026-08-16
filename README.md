@@ -22,10 +22,12 @@ Vector source -> Lexer -> Parser -> AST -> Interpreter -> Result
 - `break` and `continue`
 - named functions, recursion, closures, and `return`
 - local multi-file modules with qualified access such as `lib.geometry.move(...)`
+- explicitly registered C#/.NET-backed modules using the same qualified `import` model
+- the native standard-library module `lib.math`
 - built-ins: `print`, `length`, `concat`, `text`, `number`, and `range`
-- structured lexer, parser, module, and runtime diagnostics with source locations
-- `.vec` command-line execution and an interactive REPL
-- automated tests and 10 focused example programs
+- structured lexer, parser, module, native-call, and runtime diagnostics with source locations
+- `.vec` command-line execution, a reusable `VectorEngine`, and an interactive REPL
+- automated tests and 11 focused example programs
 
 The formal language rules are in [docs/LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md).
 The academy/project boundaries and future directions are in
@@ -44,8 +46,10 @@ Optional development environment:
 
 - Visual Studio 2022 with .NET 8 development support
 
-No external runtime service, database, package manager for Vector code, or native
-library is required. NuGet restore is needed for the xUnit test dependencies.
+No external runtime service, database, package manager for Vector code, or external
+native library is required. Vector's current native standard library is compiled into
+the runtime and uses .NET APIs internally. NuGet restore is needed for the xUnit test
+dependencies.
 
 Check the installed SDK with:
 
@@ -99,6 +103,16 @@ A multi-file example can be run the same way:
 ```powershell
 dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- examples/10_modules/main.vec
 ```
+
+The first C#/.NET-backed standard-library example is also runnable through the same
+CLI path:
+
+```powershell
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- examples/11_native_math.vec
+```
+
+It imports `lib.math` with ordinary Vector module syntax; no separate library-loading
+command is required.
 
 On Windows, after building, the generated executable can also be run directly:
 
@@ -253,6 +267,43 @@ The module file is `examples/10_modules/lib/geometry.vec`. Imported members stay
 behind the full qualified module path; they are not flattened into the caller's
 ordinary variable scope.
 
+The same Vector-facing syntax can also refer to an explicitly registered native
+C#/.NET-backed module:
+
+```vec
+import lib.math;
+
+print(lib.math.sqrt(25));
+print(lib.math.pi);
+```
+
+Source modules and native modules share the same qualified module identity and access
+rules. A native module is available only when the host runtime registers it. If a
+local `.vec` file and a native registration both claim the same qualified module name,
+Vector reports an explicit module conflict instead of silently choosing one.
+
+Native modules are registered deliberately by the host; Vector does not scan arbitrary
+assemblies, reflect over installed .NET APIs, or load arbitrary DLLs as modules.
+
+## Native standard library: `lib.math`
+
+`lib.math` is registered by the default `VectorEngine`, CLI, and REPL runtime:
+
+| Member | Behavior |
+| --- | --- |
+| `lib.math.pi` | .NET `System.Math.PI` as a Vector number |
+| `lib.math.e` | .NET `System.Math.E` as a Vector number |
+| `lib.math.abs(value)` | Absolute value |
+| `lib.math.sqrt(value)` | Square root |
+| `lib.math.min(a, b)` | Smaller number |
+| `lib.math.max(a, b)` | Larger number |
+| `lib.math.pow(base, exponent)` | Exponentiation |
+
+All function arguments above must be Vector numbers. Arity is strict. Native numeric
+results must be finite; `NaN` and infinities are rejected as structured Vector runtime
+errors. Importing `lib.math` does not create unqualified names such as `sqrt`, `max`,
+or `pi`.
+
 ## Core built-ins
 
 | Built-in | Behavior |
@@ -281,6 +332,7 @@ The `examples/` directory provides a focused tour:
 8. [`08_vectors.vec`](examples/08_vectors.vec) — numeric-list vector operations
 9. [`09_scopes.vec`](examples/09_scopes.vec) — lexical scope and outer assignment
 10. [`10_modules/main.vec`](examples/10_modules/main.vec) — multiple local files
+11. [`11_native_math.vec`](examples/11_native_math.vec) — C#/.NET-backed `lib.math`
 
 All example programs are also covered by automated execution tests.
 
@@ -295,8 +347,11 @@ path\program.vec:2:1: error RuntimeTypeError: ...
     ^^^^^^^^^^^^^
 ```
 
-Errors originating in imported modules retain the imported module's file/source
-identity rather than being incorrectly attributed to the entry file.
+Errors originating in imported source modules retain the imported module's
+file/source identity rather than being incorrectly attributed to the entry file.
+Native call failures use the Vector call-site span and are converted to structured
+Vector diagnostics; unexpected host exceptions do not expose raw C# exception details
+or stack traces to Vector code.
 
 ## Project structure
 
@@ -310,8 +365,12 @@ docs/              project scope and formal language specification
 
 ## Future work
 
-The required interpreter remains the priority and reference implementation.
-Candidate post-MVP directions include more built-ins/vector mathematics, a custom
-bytecode compiler and VM, a Visual Studio Community extension, and eventually an
-inspectable natural-language translation layer. These are future directions, not
-part of Vector v1's required interpreter behavior.
+The required tree-walking interpreter remains the reference implementation. The first
+post-MVP native-library foundation is now implemented: source and registered native
+modules share one qualified module model, and `lib.math` proves the C#/.NET boundary.
+
+Planned later work includes broader standard-library functionality, completing the
+vector-focused functionality and adding matrices, controlled external C# library/plugin
+support, a custom bytecode compiler and VM, a Visual Studio Community extension, and
+eventually an inspectable natural-language translation layer. Arbitrary DLL loading,
+automatic reflection over .NET APIs, and package management are not implemented.

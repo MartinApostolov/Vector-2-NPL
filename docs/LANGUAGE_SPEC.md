@@ -112,7 +112,7 @@ import
 
 ### 3.3 Numbers
 
-Vector v1 exposes one numeric runtime type: `number`.
+Vector exposes one numeric runtime type: `number`.
 
 Valid numeric literal forms include integers, decimals, and scientific notation:
 
@@ -696,7 +696,14 @@ print(x);
 
 ## 13. Modules and multiple files
 
-Every loaded `.vec` source file is a module. A program may import local modules:
+A Vector module has a qualified `ModuleId` and a persistent module environment.
+A module implementation may be either:
+
+- a local `.vec` source file; or
+- an explicitly registered native C#/.NET module supplied by the host runtime.
+
+Both implementations use the same Vector-facing import and qualified-member syntax.
+A program may import a local source module:
 
 ```vec
 import lib.geometry;
@@ -760,11 +767,14 @@ Imports are not allowed inside functions, loops, conditionals, or blocks.
 
 ### 13.4 Module initialization and caching
 
-A module's top-level code executes when it is first imported. Each module is
-initialized at most once per program execution/module-loader lifetime, even when
-multiple imports reach it.
+A source module's top-level code executes when it is first imported. A native module's
+registered initializer populates its persistent module environment when it is first
+loaded. Each module is initialized at most once per program execution/module-loader
+lifetime, even when multiple imports reach it.
 
-Dependencies initialize as their importing module executes its import statements.
+Dependencies initialize as their importing module executes its import statements. The
+REPL retains one module loader for the session, so an imported module's initialization
+and cache identity also persist across successful REPL submissions.
 
 ### 13.5 Circular imports
 
@@ -776,10 +786,68 @@ possible.
 Qualified module paths occupy a namespace separate from ordinary variable bindings.
 General object/member access is not part of Vector v1.
 
-### 13.7 Packages and native libraries
+### 13.7 Native modules and source/native conflicts
 
-Vector v1 has no package manager, package manifest, external-library import syntax,
-or unrestricted .NET reflection/API access. These are future directions.
+Native modules are registered explicitly by the host runtime using the same qualified
+module ids that source imports use. They do not require a fake source path, source
+text, or parsed AST.
+
+Resolution for one qualified module id is:
+
+```text
+registered native only  -> load native module
+existing .vec file only -> load source module
+neither                  -> ModuleNotFound
+both                     -> ModuleConflict
+```
+
+Vector never silently prefers a native module over a source module, or vice versa.
+
+A native initializer exports named Vector runtime values into that module's persistent
+environment. Native callable values participate in ordinary Vector call syntax and
+strict arity checking. Supported host-value conversion is explicit and controlled;
+there is no general reflection-based conversion of arbitrary C# objects.
+
+Native modules are not automatically discovered by scanning assemblies. Vector does
+not provide unrestricted .NET reflection/API access, arbitrary DLL loading, a package
+manifest, or a package manager.
+
+### 13.8 Standard native module: `lib.math`
+
+The default runtime used by `VectorEngine`, the CLI, and the REPL registers:
+
+```vec
+import lib.math;
+```
+
+Its public members are:
+
+```text
+lib.math.pi
+lib.math.e
+lib.math.abs(value)
+lib.math.sqrt(value)
+lib.math.min(a, b)
+lib.math.max(a, b)
+lib.math.pow(base, exponent)
+```
+
+`pi` and `e` are module values. They do not become unqualified globals.
+
+Every function above accepts only Vector numbers and uses strict fixed arity. The
+implementation uses .NET `System.Math` where appropriate. Native numeric results must
+be finite; `NaN`, positive infinity, and negative infinity are rejected as structured
+Vector runtime failures.
+
+Example:
+
+```vec
+import lib.math;
+
+print(lib.math.sqrt(25));
+print(lib.math.max(3, 7));
+print(lib.math.pi);
+```
 
 ## 14. Core built-ins
 
@@ -910,8 +978,15 @@ Examples include:
 - vector length mismatch;
 - cyclic-list creation;
 - calling a non-function;
-- wrong function argument count;
-- module loading/circular-import failures.
+- wrong function or native-call argument count;
+- module loading/circular-import failures;
+- source/native module-name conflicts;
+- native argument conversion/type failures;
+- native operations that return non-finite numeric results.
+
+Native failures are translated to structured Vector diagnostics. The Vector call-site
+span is retained for native call failures, and unexpected host exceptions are reported
+without exposing raw C# exception details or stack traces.
 
 Vector does not guess, coerce, or silently repair invalid operations.
 
@@ -938,7 +1013,9 @@ dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- program.vec
 ```
 
 The runner requires exactly one `.vec` argument in file mode and uses strict UTF-8
-input. The entry file's directory becomes the module root.
+input. The entry file's directory becomes the module root. The normal CLI runtime also
+uses the default native standard-library registry, which currently includes
+`lib.math`.
 
 Process exit codes:
 
@@ -969,7 +1046,8 @@ REPL rules:
 
 - successful submissions share one top-level environment;
 - functions/variables persist between submissions;
-- imported module state is retained for that REPL session;
+- imported source and native module state is retained for that REPL session;
+- the default native standard-library registry, including `lib.math`, is available;
 - an expression statement whose final value is not `nothing` is displayed;
 - unmatched `(`, `{`, or `[` causes continuation input with the `...> ` prompt;
 - `:exit` and `:quit` exit when entered as a top-level REPL command;
@@ -1143,9 +1221,10 @@ Vector v1 does not require:
 - static type declarations;
 - implicit type coercion or truthiness;
 - classes or a general object/member system;
-- arbitrary .NET API access;
+- arbitrary .NET API access or automatic reflection-based library discovery;
+- arbitrary external DLL/plugin loading;
 - package management or package publishing;
-- a production-scale standard library;
+- a production-scale standard library beyond the implemented initial modules;
 - bytecode/native compilation;
 - an integrated debugger;
 - matrix operations beyond the numeric-list foundation;
