@@ -1,6 +1,8 @@
 using System.Text;
 using Vector.Core.Diagnostics;
 using Vector.Core.Parsing;
+using Vector.Core.Runtime;
+using Vector.Core.Runtime.Host;
 using RuntimeEnvironment = Vector.Core.Runtime.Environment;
 using Vector.Core.Source;
 using Vector.Core.Syntax.Statements;
@@ -8,14 +10,16 @@ using Vector.Core.Syntax.Statements;
 namespace Vector.Core.Modules;
 
 /// <summary>
-/// Resolves and parses local Vector modules, recursively loads their imports, and caches each module once.
-/// This stage deliberately does not execute module top-level code; execution is added in Commit 25.
+/// Resolves, parses, initializes, and caches local Vector modules for one program execution.
+/// Plain loading remains parse-only; importing performs one-time top-level initialization.
 /// </summary>
 public sealed class ModuleLoader
 {
     private readonly Dictionary<ModuleId, LoadedModule> _loaded = new();
     private readonly HashSet<ModuleId> _loading = new();
     private readonly List<ModuleId> _loadingStack = new();
+    private readonly HashSet<ModuleId> _initialized = new();
+    private readonly HashSet<ModuleId> _initializing = new();
 
     public ModuleLoader(ModuleResolver resolver)
     {
@@ -25,6 +29,9 @@ public sealed class ModuleLoader
     public ModuleResolver Resolver { get; }
 
     public IReadOnlyCollection<LoadedModule> LoadedModules => _loaded.Values;
+
+    public IReadOnlyCollection<LoadedModule> InitializedModules =>
+        _loaded.Values.Where(module => _initialized.Contains(module.Id)).ToArray();
 
     public LoadedModule Load(ModuleId moduleId)
     {
@@ -105,6 +112,69 @@ public sealed class ModuleLoader
         {
             _loading.Remove(moduleId);
             _loadingStack.RemoveAt(_loadingStack.Count - 1);
+        }
+    }
+
+    /// <summary>
+    /// Loads a module if necessary and executes its top-level code exactly once for this loader.
+    /// Imported dependencies initialize through the module's own import statements.
+    /// </summary>
+    public LoadedModule Import(ModuleId moduleId, IVectorHost host)
+    {
+        ArgumentNullException.ThrowIfNull(moduleId);
+        ArgumentNullException.ThrowIfNull(host);
+
+        var module = Load(moduleId);
+        Initialize(module, host);
+        return module;
+    }
+
+    public bool IsInitialized(ModuleId moduleId)
+    {
+        ArgumentNullException.ThrowIfNull(moduleId);
+        return _initialized.Contains(moduleId);
+    }
+
+    internal bool TryGetModuleForEnvironment(RuntimeEnvironment environment, out LoadedModule? module)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+
+        for (RuntimeEnvironment? scope = environment; scope is not null; scope = scope.Enclosing)
+        {
+            module = _loaded.Values.FirstOrDefault(
+                candidate => ReferenceEquals(candidate.Environment, scope));
+            if (module is not null)
+            {
+                return true;
+            }
+        }
+
+        module = null;
+        return false;
+    }
+
+    private void Initialize(LoadedModule module, IVectorHost host)
+    {
+        if (_initialized.Contains(module.Id))
+        {
+            return;
+        }
+
+        if (!_initializing.Add(module.Id))
+        {
+            throw new InvalidOperationException(
+                $"Module '{module.Id}' is already being initialized.");
+        }
+
+        try
+        {
+            var interpreter = new Interpreter(module.Environment, host, this);
+            interpreter.Execute(module.Syntax);
+            _initialized.Add(module.Id);
+        }
+        finally
+        {
+            _initializing.Remove(module.Id);
         }
     }
 

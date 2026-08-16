@@ -1,5 +1,6 @@
 using Vector.Core.Diagnostics;
 using Vector.Core.Lexing;
+using Vector.Core.Modules;
 using Vector.Core.Runtime.Builtins;
 using Vector.Core.Runtime.Callable;
 using Vector.Core.Runtime.Host;
@@ -17,10 +18,14 @@ namespace Vector.Core.Runtime;
 /// </summary>
 public sealed class Interpreter
 {
-    public Interpreter(Environment? environment = null, IVectorHost? host = null)
+    public Interpreter(
+        Environment? environment = null,
+        IVectorHost? host = null,
+        ModuleLoader? moduleLoader = null)
     {
         _environment = environment ?? new Environment();
         Host = host ?? new VectorHost();
+        _moduleLoader = moduleLoader;
         _builtins = new Dictionary<string, VectorValue>(StringComparer.Ordinal)
         {
             ["print"] = new PrintBuiltin(Host),
@@ -33,6 +38,8 @@ public sealed class Interpreter
     }
 
     private readonly IReadOnlyDictionary<string, VectorValue> _builtins;
+    private readonly ModuleLoader? _moduleLoader;
+    private readonly HashSet<ModuleId> _importedModules = new();
     private Environment _environment;
 
     public Environment CurrentEnvironment => _environment;
@@ -68,9 +75,24 @@ public sealed class Interpreter
             ForStatement loop => ExecuteFor(loop),
             BreakStatement breakStatement => throw new BreakSignal(breakStatement.Span),
             ContinueStatement continueStatement => throw new ContinueSignal(continueStatement.Span),
+            ImportStatement import => ExecuteImport(import),
             _ => throw new InvalidOperationException(
                 $"Statement type '{statement.GetType().Name}' is not implemented by this runtime stage.")
         };
+    }
+
+    private VectorValue ExecuteImport(ImportStatement import)
+    {
+        if (_moduleLoader is null)
+        {
+            throw new InvalidOperationException(
+                "Executing an import requires an interpreter configured with a ModuleLoader.");
+        }
+
+        var moduleId = ModuleId.FromImport(import);
+        _moduleLoader.Import(moduleId, Host);
+        _importedModules.Add(moduleId);
+        return NothingValue.Instance;
     }
 
     private VectorValue ExecuteFunctionDeclaration(FunctionDeclaration declaration)
@@ -277,6 +299,7 @@ public sealed class Interpreter
         {
             LiteralExpression literal => EvaluateLiteral(literal),
             NameExpression name => EvaluateName(name),
+            QualifiedNameExpression qualifiedName => EvaluateQualifiedName(qualifiedName),
             GroupingExpression grouping => Evaluate(grouping.Expression),
             UnaryExpression unary => EvaluateUnary(unary),
             BinaryExpression binary => EvaluateBinary(binary),
@@ -300,6 +323,73 @@ public sealed class Interpreter
         {
             return builtin;
         }
+    }
+
+    private VectorValue EvaluateQualifiedName(QualifiedNameExpression expression)
+    {
+        if (_moduleLoader is null)
+        {
+            throw new RuntimeError(
+                DiagnosticCode.UndefinedVariable,
+                $"Qualified module name '{expression.QualifiedName}' is not available.",
+                expression.Span);
+        }
+
+        var accessibleModules = GetAccessibleModules();
+
+        foreach (var moduleId in accessibleModules.OrderByDescending(id => id.Segments.Count))
+        {
+            if (expression.PathSegments.Count != moduleId.Segments.Count + 1
+                || !PathStartsWith(expression.PathSegments, moduleId.Segments))
+            {
+                continue;
+            }
+
+            if (!_moduleLoader.TryGetLoaded(moduleId, out var module) || module is null)
+            {
+                continue;
+            }
+
+            var memberName = expression.PathSegments[^1];
+            return module.Environment.Get(memberName, expression.Span);
+        }
+
+        throw new RuntimeError(
+            DiagnosticCode.UndefinedVariable,
+            $"Qualified module member '{expression.QualifiedName}' is not available in this scope.",
+            expression.Span);
+    }
+
+    private IEnumerable<ModuleId> GetAccessibleModules()
+    {
+        if (_moduleLoader is not null
+            && _moduleLoader.TryGetModuleForEnvironment(_environment, out var owner)
+            && owner is not null)
+        {
+            return owner.Imports;
+        }
+
+        return _importedModules;
+    }
+
+    private static bool PathStartsWith(
+        IReadOnlyList<string> path,
+        IReadOnlyList<string> prefix)
+    {
+        if (path.Count < prefix.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < prefix.Count; i++)
+        {
+            if (!string.Equals(path[i], prefix[i], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private VectorValue EvaluateCall(CallExpression expression)

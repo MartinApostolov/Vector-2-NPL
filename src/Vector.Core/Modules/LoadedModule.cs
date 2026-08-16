@@ -4,8 +4,8 @@ using Vector.Core.Syntax;
 namespace Vector.Core.Modules;
 
 /// <summary>
-/// Parsed, cached representation of one local Vector module.
-/// Runtime initialization is performed by the next module-runtime stage.
+/// Parsed, cached representation of one local Vector module and its persistent top-level environment.
+/// One-time runtime initialization is coordinated by <see cref="ModuleLoader"/>.
 /// </summary>
 public sealed class LoadedModule
 {
