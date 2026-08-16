@@ -231,6 +231,254 @@ public sealed class BuiltinTests
         Assert.Equal(new[] { "2" }, secondOutput);
     }
 
+    [Theory]
+    [InlineData("length", 1)]
+    [InlineData("concat", 2)]
+    [InlineData("text", 1)]
+    [InlineData("number", 1)]
+    [InlineData("range", 2)]
+    public void EssentialBuiltinsAreAvailableGlobally(string name, int arity)
+    {
+        var builtin = Assert.IsAssignableFrom<BuiltinFunction>(Evaluate(name));
+
+        Assert.Equal(name, builtin.Name);
+        Assert.Equal(arity, builtin.Arity);
+    }
+
+    [Fact]
+    public void LengthReturnsListElementCount()
+    {
+        Assert.Equal(new NumberValue(4), Execute("length([1, \"two\", true, nothing]);", new List<string>()));
+    }
+
+    [Fact]
+    public void LengthCountsUnicodeScalarValuesInText()
+    {
+        Assert.Equal(new NumberValue(3), Execute("length(\"A😀B\");", new List<string>()));
+    }
+
+    [Fact]
+    public void LengthRejectsUnsupportedRuntimeTypes()
+    {
+        var error = Assert.Throws<RuntimeError>(() => Execute("length(12);", new List<string>()));
+
+        Assert.Equal(DiagnosticCode.RuntimeTypeError, error.Code);
+        Assert.Contains("text or list", error.Message);
+    }
+
+    [Fact]
+    public void ConcatReturnsNewListWithBothInputsInOrder()
+    {
+        var result = Execute("concat([1, 2], [3, 4]);", new List<string>());
+
+        Assert.Equal(
+            new ListValue(new VectorValue[]
+            {
+                new NumberValue(1), new NumberValue(2), new NumberValue(3), new NumberValue(4)
+            }),
+            result);
+    }
+
+    [Fact]
+    public void ConcatSupportsMixedAndNestedListValues()
+    {
+        var result = Execute("concat([1, \"two\"], [[3], nothing]);", new List<string>());
+
+        Assert.Equal(
+            new ListValue(new VectorValue[]
+            {
+                new NumberValue(1),
+                new TextValue("two"),
+                new ListValue(new VectorValue[] { new NumberValue(3) }),
+                NothingValue.Instance
+            }),
+            result);
+    }
+
+    [Fact]
+    public void ConcatDoesNotMutateEitherInputList()
+    {
+        var environment = new RuntimeEnvironment();
+
+        var result = Execute(
+            "let left = [1]; let right = [2]; let joined = concat(left, right); " +
+            "joined[0] = 9; [left, right, joined];",
+            new List<string>(),
+            environment);
+
+        Assert.Equal(
+            new ListValue(new VectorValue[]
+            {
+                new ListValue(new VectorValue[] { new NumberValue(1) }),
+                new ListValue(new VectorValue[] { new NumberValue(2) }),
+                new ListValue(new VectorValue[] { new NumberValue(9), new NumberValue(2) })
+            }),
+            result);
+    }
+
+    [Theory]
+    [InlineData("concat(1, []);")]
+    [InlineData("concat([], 1);")]
+    [InlineData("concat(\"a\", \"b\");")]
+    public void ConcatRequiresTwoLists(string source)
+    {
+        var error = Assert.Throws<RuntimeError>(() => Execute(source, new List<string>()));
+
+        Assert.Equal(DiagnosticCode.RuntimeTypeError, error.Code);
+        Assert.Contains("two lists", error.Message);
+    }
+
+    [Fact]
+    public void TextReturnsExistingTextValue()
+    {
+        Assert.Equal(new TextValue("Vector"), Execute("text(\"Vector\");", new List<string>()));
+    }
+
+    [Theory]
+    [InlineData("text(12.5);", "12.5")]
+    [InlineData("text(true);", "true")]
+    [InlineData("text(false);", "false")]
+    [InlineData("text(nothing);", "nothing")]
+    [InlineData("text([1, \"two\", true]);", "[1, two, true]")]
+    public void TextExplicitlyConvertsCoreValues(string source, string expected)
+    {
+        Assert.Equal(new TextValue(expected), Execute(source, new List<string>()));
+    }
+
+    [Fact]
+    public void TextConvertsFunctionValuesWithoutInvokingThem()
+    {
+        Assert.Equal(
+            new TextValue("<function>"),
+            Execute("function answer() { return 42; } text(answer);", new List<string>()));
+    }
+
+    [Fact]
+    public void NumberReturnsExistingNumberValue()
+    {
+        Assert.Equal(new NumberValue(42), Execute("number(42);", new List<string>()));
+    }
+
+    [Theory]
+    [InlineData("number(\"20\");", 20d)]
+    [InlineData("number(\"-3.5\");", -3.5d)]
+    [InlineData("number(\"1e3\");", 1000d)]
+    [InlineData("number(\"0.25\");", 0.25d)]
+    public void NumberExplicitlyConvertsNumericText(string source, double expected)
+    {
+        Assert.Equal(new NumberValue(expected), Execute(source, new List<string>()));
+    }
+
+    [Theory]
+    [InlineData("number(\"not a number\");")]
+    [InlineData("number(\"NaN\");")]
+    [InlineData("number(\"Infinity\");")]
+    public void NumberRejectsTextThatIsNotFiniteNumericText(string source)
+    {
+        var error = Assert.Throws<RuntimeError>(() => Execute(source, new List<string>()));
+
+        Assert.Equal(DiagnosticCode.RuntimeTypeError, error.Code);
+        Assert.Contains("could not convert", error.Message);
+    }
+
+    [Theory]
+    [InlineData("number(true);")]
+    [InlineData("number(nothing);")]
+    [InlineData("number([]);")]
+    public void NumberRejectsUnrelatedRuntimeTypes(string source)
+    {
+        var error = Assert.Throws<RuntimeError>(() => Execute(source, new List<string>()));
+
+        Assert.Equal(DiagnosticCode.RuntimeTypeError, error.Code);
+        Assert.Contains("number or numeric text", error.Message);
+    }
+
+    [Fact]
+    public void RangeUsesInclusiveStartAndExclusiveEnd()
+    {
+        Assert.Equal(
+            new ListValue(new VectorValue[]
+            {
+                new NumberValue(1), new NumberValue(2), new NumberValue(3), new NumberValue(4)
+            }),
+            Execute("range(1, 5);", new List<string>()));
+    }
+
+    [Fact]
+    public void RangeSupportsNegativeBounds()
+    {
+        Assert.Equal(
+            new ListValue(new VectorValue[]
+            {
+                new NumberValue(-2), new NumberValue(-1), new NumberValue(0), new NumberValue(1)
+            }),
+            Execute("range(-2, 2);", new List<string>()));
+    }
+
+    [Theory]
+    [InlineData("range(3, 3);")]
+    [InlineData("range(5, 2);")]
+    public void RangeIsEmptyWhenStartIsNotLessThanEnd(string source)
+    {
+        Assert.Equal(new ListValue(), Execute(source, new List<string>()));
+    }
+
+    [Theory]
+    [InlineData("range(1.5, 4);")]
+    [InlineData("range(1, 4.5);")]
+    [InlineData("range(\"1\", 4);")]
+    [InlineData("range(1, true);")]
+    public void RangeRequiresWholeNumberBounds(string source)
+    {
+        var error = Assert.Throws<RuntimeError>(() => Execute(source, new List<string>()));
+
+        Assert.Equal(DiagnosticCode.RuntimeTypeError, error.Code);
+        Assert.Contains("whole-number", error.Message);
+    }
+
+    [Fact]
+    public void RangeWorksAsForLoopIterable()
+    {
+        var output = new List<string>();
+
+        Execute("for number in range(1, 4) { print(number); }", output);
+
+        Assert.Equal(new[] { "1", "2", "3" }, output);
+    }
+
+    [Theory]
+    [InlineData("length();")]
+    [InlineData("concat([]);")]
+    [InlineData("text();")]
+    [InlineData("number();")]
+    [InlineData("range(1);")]
+    [InlineData("range(1, 2, 3);")]
+    public void EssentialBuiltinsUseStrictArity(string source)
+    {
+        var error = Assert.Throws<RuntimeError>(() => Execute(source, new List<string>()));
+
+        Assert.Equal(DiagnosticCode.ArgumentCountMismatch, error.Code);
+    }
+
+    [Fact]
+    public void BuiltinSemanticFailureUsesCallSourceSpan()
+    {
+        const string source = "number(\"nope\");";
+        var error = Assert.Throws<RuntimeError>(() => Execute(source, new List<string>()));
+
+        Assert.Equal(DiagnosticCode.RuntimeTypeError, error.Code);
+        Assert.Equal(0, error.Span.Start.Offset);
+        Assert.Equal(source.Length - 1, error.Span.End.Offset);
+    }
+
+    [Fact]
+    public void UserBindingCanShadowAnyEssentialBuiltin()
+    {
+        var result = Execute("let range = 99; range;", new List<string>());
+
+        Assert.Equal(new NumberValue(99), result);
+    }
+
     private static VectorValue Execute(
         string source,
         List<string> output,

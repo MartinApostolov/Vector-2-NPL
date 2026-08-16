@@ -23,7 +23,12 @@ public sealed class Interpreter
         Host = host ?? new VectorHost();
         _builtins = new Dictionary<string, VectorValue>(StringComparer.Ordinal)
         {
-            ["print"] = new PrintBuiltin(Host)
+            ["print"] = new PrintBuiltin(Host),
+            ["length"] = new LengthBuiltin(),
+            ["concat"] = new ConcatBuiltin(),
+            ["text"] = new TextBuiltin(),
+            ["number"] = new NumberBuiltin(),
+            ["range"] = new RangeBuiltin()
         };
     }
 
@@ -323,7 +328,14 @@ public sealed class Interpreter
             arguments[i] = Evaluate(expression.Arguments[i]);
         }
 
-        return callable.Call(this, arguments);
+        try
+        {
+            return callable.Call(this, arguments);
+        }
+        catch (BuiltinRuntimeException error)
+        {
+            throw new RuntimeError(error.Code, error.Message, expression.Span);
+        }
     }
 
     private static VectorValue EvaluateLiteral(LiteralExpression expression) =>
