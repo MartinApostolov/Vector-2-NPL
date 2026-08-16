@@ -102,6 +102,15 @@ public sealed class ReplTests
     }
 
     [Fact]
+    public void ReplQuotesTextInsideDisplayedLists()
+    {
+        var session = Run("[1, \"two\", [\"nested\"]];\n:exit\n");
+
+        Assert.Contains("[1, \"two\", [\"nested\"]]", session.Output);
+        Assert.Empty(session.Error);
+    }
+
+    [Fact]
     public void ReplPrintBuiltinWritesToConfiguredOutput()
     {
         var session = Run("print(\"hello\");\n:exit\n");

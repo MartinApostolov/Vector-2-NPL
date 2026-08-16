@@ -1,4 +1,3 @@
-using System.Globalization;
 using Vector.Core.Runtime.Host;
 using Vector.Core.Runtime.Values;
 
@@ -32,24 +31,8 @@ public sealed class PrintBuiltin : BuiltinFunction
                 nameof(arguments));
         }
 
-        _host.WriteLine(FormatValue(arguments[0]));
+        _host.WriteLine(VectorValueFormatter.Format(arguments[0]));
         return NothingValue.Instance;
     }
 
-    internal static string FormatValue(VectorValue value)
-    {
-        ArgumentNullException.ThrowIfNull(value);
-
-        return value switch
-        {
-            NumberValue number => number.Value.ToString("G", CultureInfo.InvariantCulture),
-            TextValue text => text.Value,
-            BooleanValue boolean => boolean.Value ? "true" : "false",
-            NothingValue => "nothing",
-            ListValue list => $"[{string.Join(", ", list.Elements.Select(FormatValue))}]",
-            FunctionValue => "<function>",
-            _ => throw new InvalidOperationException(
-                $"Cannot format Vector value type '{value.GetType().Name}'.")
-        };
-    }
 }

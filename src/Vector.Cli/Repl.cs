@@ -1,4 +1,3 @@
-using System.Globalization;
 using Vector.Core.Diagnostics;
 using Vector.Core.Lexing;
 using Vector.Core.Modules;
@@ -114,7 +113,7 @@ public sealed class Repl
             if (parseResult.Root.Statements.LastOrDefault() is ExpressionStatement
                 && value is not NothingValue)
             {
-                _output.WriteLine(FormatValue(value));
+                _output.WriteLine(VectorValueFormatter.Format(value));
             }
         }
         catch (RuntimeError runtimeError)
@@ -222,18 +221,4 @@ public sealed class Repl
         }
     }
 
-    private static string FormatValue(VectorValue value)
-    {
-        return value switch
-        {
-            NumberValue number => number.Value.ToString("G", CultureInfo.InvariantCulture),
-            TextValue text => text.Value,
-            BooleanValue boolean => boolean.Value ? "true" : "false",
-            NothingValue => "nothing",
-            ListValue list => $"[{string.Join(", ", list.Elements.Select(FormatValue))}]",
-            FunctionValue => "<function>",
-            _ => throw new InvalidOperationException(
-                $"Cannot format Vector value type '{value.GetType().Name}'.")
-        };
-    }
 }

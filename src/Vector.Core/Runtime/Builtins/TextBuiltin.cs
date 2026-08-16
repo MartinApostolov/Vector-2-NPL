@@ -20,6 +20,6 @@ public sealed class TextBuiltin : BuiltinFunction
 
         return arguments[0] is TextValue text
             ? text
-            : new TextValue(PrintBuiltin.FormatValue(arguments[0]));
+            : new TextValue(VectorValueFormatter.Format(arguments[0]));
     }
 }

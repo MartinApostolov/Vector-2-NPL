@@ -97,7 +97,23 @@ public sealed class BuiltinTests
 
         Execute("print([1, [\"two\", true], nothing]);", output);
 
-        Assert.Equal(new[] { "[1, [two, true], nothing]" }, output);
+        Assert.Equal(new[] { "[1, [\"two\", true], nothing]" }, output);
+    }
+
+    [Fact]
+    public void DisplayEscapesTextNestedInsideLists()
+    {
+        var value = new ListValue(new VectorValue[]
+        {
+            new TextValue("quote: \""),
+            new TextValue("slash: \\"),
+            new TextValue("line\nbreak"),
+            new TextValue("tab\tstop")
+        });
+
+        Assert.Equal(
+            """["quote: \"", "slash: \\", "line\nbreak", "tab\tstop"]""",
+            VectorValueFormatter.Format(value));
     }
 
     [Fact]
@@ -339,7 +355,7 @@ public sealed class BuiltinTests
     [InlineData("text(true);", "true")]
     [InlineData("text(false);", "false")]
     [InlineData("text(nothing);", "nothing")]
-    [InlineData("text([1, \"two\", true]);", "[1, two, true]")]
+    [InlineData("text([1, \"two\", true]);", "[1, \"two\", true]")]
     public void TextExplicitlyConvertsCoreValues(string source, string expected)
     {
         Assert.Equal(new TextValue(expected), Execute(source, new List<string>()));
