@@ -18,5 +18,7 @@ public enum DiagnosticCode
     InvalidLoopControl,
     InvalidReturn,
     DuplicateParameter,
-    InvalidImportPlacement
+    InvalidImportPlacement,
+    VariableAlreadyDeclared,
+    UndefinedVariable
 }
