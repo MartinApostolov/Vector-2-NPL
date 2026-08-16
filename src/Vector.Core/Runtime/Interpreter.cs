@@ -1,6 +1,8 @@
 using Vector.Core.Diagnostics;
 using Vector.Core.Lexing;
+using Vector.Core.Runtime.Builtins;
 using Vector.Core.Runtime.Callable;
+using Vector.Core.Runtime.Host;
 using Vector.Core.Runtime.ControlFlow;
 using Vector.Core.Runtime.Values;
 using Vector.Core.Source;
@@ -15,14 +17,22 @@ namespace Vector.Core.Runtime;
 /// </summary>
 public sealed class Interpreter
 {
-    public Interpreter(Environment? environment = null)
+    public Interpreter(Environment? environment = null, IVectorHost? host = null)
     {
         _environment = environment ?? new Environment();
+        Host = host ?? new VectorHost();
+        _builtins = new Dictionary<string, VectorValue>(StringComparer.Ordinal)
+        {
+            ["print"] = new PrintBuiltin(Host)
+        };
     }
 
+    private readonly IReadOnlyDictionary<string, VectorValue> _builtins;
     private Environment _environment;
 
     public Environment CurrentEnvironment => _environment;
+
+    public IVectorHost Host { get; }
 
     public VectorValue Execute(CompilationUnit compilationUnit)
     {
@@ -261,7 +271,7 @@ public sealed class Interpreter
         return expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
-            NameExpression name => _environment.Get(name.Name, name.Span),
+            NameExpression name => EvaluateName(name),
             GroupingExpression grouping => Evaluate(grouping.Expression),
             UnaryExpression unary => EvaluateUnary(unary),
             BinaryExpression binary => EvaluateBinary(binary),
@@ -272,6 +282,19 @@ public sealed class Interpreter
             _ => throw new InvalidOperationException(
                 $"Expression type '{expression.GetType().Name}' is not implemented by this runtime stage.")
         };
+    }
+
+    private VectorValue EvaluateName(NameExpression expression)
+    {
+        try
+        {
+            return _environment.Get(expression.Name, expression.Span);
+        }
+        catch (RuntimeError error) when (error.Code == DiagnosticCode.UndefinedVariable
+            && _builtins.TryGetValue(expression.Name, out var builtin))
+        {
+            return builtin;
+        }
     }
 
     private VectorValue EvaluateCall(CallExpression expression)
