@@ -1,87 +1,73 @@
 # Vector Language Specification
 
-**Status:** Initial language design for Vector v1  
+**Status:** Vector v1 interpreter semantics  
 **Project:** Vector-2-NPL  
-**File extension:** `.vec`
+**File extension:** `.vec`  
+**Reference implementation:** C# / .NET 8 tree-walking interpreter
 
-## 1. Purpose and Design Principles
+This document defines the formal Vector v1 language implemented by the repository.
+The core language is deterministic and strict. Future natural-language tooling may
+translate human instructions into Vector source or the same semantic structures,
+but natural-language interpretation is not part of the v1 parser.
 
-Vector is a small general-purpose programming language whose first implementation is
-a C# tree-walking interpreter.
+## 1. Design principles
 
-Vector v1 uses a formal, deterministic syntax. A future natural-language front end
-may translate human instructions into formal Vector source code or into the same
-canonical syntax/semantic representation used by the interpreter. Natural-language
-interpretation is intentionally kept outside the core parser.
+Vector v1 follows these rules:
 
-The language is designed around these principles:
+1. Variables are dynamically typed; values have runtime types.
+2. Operations are strict about the runtime values they accept.
+3. Vector performs no implicit type coercion.
+4. Conditions require actual booleans; there is no truthiness.
+5. Evaluation order is defined and deterministic.
+6. Blocks and functions use lexical scope.
+7. Lists are ordinary mutable lists; a list whose current contents are all numbers
+   can additionally participate in numeric-list vector operations.
+8. Modules are local `.vec` files accessed through their full qualified paths.
+9. Diagnostics preserve structured source information, including the originating
+   imported module when an error occurs there.
+10. The tree-walking interpreter is the v1 reference implementation.
 
-1. Formal Vector remains strict and deterministic.
-2. Syntax should be readable and unsurprising to programmers and approachable to
-   beginners.
-3. Variables are dynamically typed; values have runtime types.
-4. Operations are strict about the runtime types they accept.
-5. Vector performs no implicit type coercion.
-6. Conditions require actual boolean values; there is no truthiness.
-7. Evaluation order is defined and deterministic.
-8. Modules are explicit and accessed through their full qualified paths.
-9. Diagnostics carry precise source locations.
-10. Future front ends, interpreters, virtual machines, IDE tooling, and natural-
-    language systems should reuse the same core semantics.
-
-The initial execution pipeline is:
+The execution pipeline is:
 
 ```text
 Vector source
 -> Lexer
 -> Parser
 -> AST
--> Semantic/runtime checks
+-> Runtime checks
 -> Tree-walking interpreter
 -> Result
 ```
 
-A future natural-language pipeline may be:
-
-```text
-Natural-language instruction
--> NLP/AI translation
--> inspectable Vector source
--> normal Vector pipeline
-```
-
-## 2. Source Files and Encoding
+## 2. Source files and encoding
 
 Vector source files use the `.vec` extension.
 
-Source files are UTF-8 text. Unicode text and Unicode identifiers are supported.
+The command-line runner reads source as UTF-8 and rejects invalid UTF-8 input.
+Unicode text and Unicode identifiers are supported.
 
 Whitespace separates tokens but is otherwise insignificant. Newlines do not end
-statements. Normal statements are terminated by `;`.
-
-Example:
+statements. Statements that require terminators use `;`.
 
 ```vec
 let name = "Vector";
 let count = 3;
-
 print(name);
 ```
 
-## 3. Lexical Rules
+## 3. Lexical rules
 
 ### 3.1 Identifiers
 
-Identifiers may use Unicode letters.
+Identifier rules are Unicode-aware:
 
-Recommended lexical rules:
+- the first character is `_` or a Unicode letter;
+- later characters may be `_`, Unicode letters, Unicode combining marks, or
+  Unicode decimal digits;
+- identifier comparison is case-sensitive;
+- identifiers are normalized to Unicode NFC before name comparison.
 
-- The first character must be `_` or a Unicode letter.
-- Later characters may be `_`, Unicode letters, Unicode combining marks, or digits.
-- Identifier comparison is case-sensitive.
-- Identifiers are normalized to Unicode NFC before name comparison.
-
-Examples of valid identifiers:
+Examples:
 
 ```vec
 let playerHealth = 100;
@@ -98,11 +84,11 @@ Player
 PLAYER
 ```
 
-Keywords use their exact lowercase spelling.
+Keywords use exact lowercase spelling.
 
 ### 3.2 Keywords
 
-Vector v1 reserves these keywords:
+Vector v1 reserves:
 
 ```text
 let
@@ -124,13 +110,11 @@ not
 import
 ```
 
-Additional keywords may be introduced by later language versions.
-
 ### 3.3 Numbers
 
-Vector exposes one user-facing numeric type: `number`.
+Vector v1 exposes one numeric runtime type: `number`.
 
-Examples:
+Valid numeric literal forms include integers, decimals, and scientific notation:
 
 ```vec
 0
@@ -141,9 +125,9 @@ Examples:
 2.5e-4
 ```
 
-A leading `-` is a unary operator, not part of the numeric literal.
+A leading `-` is unary negation, not part of the literal.
 
-A decimal point must have digits on both sides. Therefore:
+A decimal point requires digits on both sides:
 
 ```text
 0.5   valid
@@ -152,24 +136,18 @@ A decimal point must have digits on both sides. Therefore:
 5.    invalid
 ```
 
-Numeric separators are not part of Vector v1.
+Numeric separators are not part of v1.
 
-The implementation may use an appropriate internal numeric representation, but
-the language exposes ordinary numeric values as `number`.
+The implementation uses `double` internally. Source numeric literals must parse to
+finite values. Ordinary arithmetic exposes the language-level `number` type.
 
 Division is mathematical rather than integer division:
 
 ```vec
-5 / 2
+5 / 2;  // 2.5
 ```
 
-evaluates to:
-
-```text
-2.5
-```
-
-Division by zero is a runtime error.
+Using zero as the right operand of `/` or `%` is a runtime error.
 
 ### 3.4 Text
 
@@ -180,9 +158,9 @@ Text literals use double quotes:
 "Здравей"
 ```
 
-Single-quoted strings are not part of Vector v1.
+Single-quoted strings are not part of v1. Multiline text literals are not supported.
 
-Supported escape sequences are:
+Supported escapes are:
 
 ```text
 \"   double quote
@@ -192,21 +170,13 @@ Supported escape sequences are:
 \t   tab
 ```
 
-Text literals may contain Unicode directly. Multiline text literals are not part
-of Vector v1.
+Unknown escape sequences produce a lexical diagnostic.
 
-### 3.5 Boolean and Nothing Literals
-
-Boolean literals are:
+### 3.5 Boolean and nothing literals
 
 ```vec
 true
 false
-```
-
-The no-value literal is:
-
-```vec
 nothing
 ```
 
@@ -215,54 +185,26 @@ participate in truthiness.
 
 ### 3.6 Comments
 
-Single-line comments begin with `//`:
+Line comments start with `//`:
 
 ```vec
-// This is a comment.
-let x = 10;
+// one line
+let value = 10;
 ```
 
-Block comments use `/*` and `*/`:
+Block comments use `/* ... */`:
 
 ```vec
-/*
-    This is a block comment.
-*/
-let x = 10;
+/* multiple
+   lines */
+let value = 10;
 ```
 
-Block comments do not nest in Vector v1.
+Block comments do not nest. An unterminated block comment is a lexical error.
 
-## 4. Runtime Value Model
+## 4. Runtime value model
 
-Vector is dynamically typed.
-
-A variable does not permanently own a type. The value currently stored in the
-variable has a runtime type.
-
-Example:
-
-```vec
-let value = "20";
-
-value = 20;
-```
-
-Both assignments are valid.
-
-However, operations check the current runtime value:
-
-```vec
-let value = "20";
-
-value + 5;   // runtime type error
-
-value = 20;
-
-value + 5;   // valid, result is 25
-```
-
-Vector v1 has these core runtime value categories:
+Vector v1 runtime values are:
 
 ```text
 number
@@ -273,69 +215,76 @@ function
 nothing
 ```
 
-Modules also exist as language namespaces, but imported module paths are not
-ordinary variable values in Vector v1.
-
-### 4.1 No Implicit Coercion
-
-Vector does not silently convert between unrelated types.
+A variable's type is the type of its current value. A binding may later hold a value
+of a different type:
 
 ```vec
-5 + "2"
+let value = "20";
+value = 20;
 ```
 
-is an error.
+That is valid. Operations still inspect the current values strictly:
 
 ```vec
-"Age: " + 20
+let value = "20";
+value + 5;  // runtime type error
 ```
 
-is an error.
+Modules are namespaces, not ordinary first-class variable values.
 
-Explicit conversion functions may be provided by the standard library, for
-example `text(value)` and `number(value)`, but conversion is never implicit.
+### 4.1 No implicit coercion
 
-### 4.2 Text Concatenation
-
-`+` concatenates two text values:
+Vector never silently changes unrelated runtime types:
 
 ```vec
-"Hello " + "Vector"
+5 + "2";       // error
+"Age: " + 20; // error
 ```
 
-evaluates to:
+Explicit conversions are available through `text(value)` and `number(value)`.
 
-```text
-"Hello Vector"
-```
+### 4.2 Equality
 
-Both operands must be text.
-
-### 4.3 Lists
-
-Lists use square brackets:
+`==` and `!=` do not coerce types.
 
 ```vec
-let values = [1, 2, 3];
-let names = ["Alice", "Bob"];
+5 == 5;           // true
+5 == "5";         // false
+"abc" == "abc"; // true
+```
+
+Rules:
+
+- numbers compare by numeric value;
+- text compares by text value;
+- booleans compare by boolean value;
+- `nothing == nothing` is true;
+- values of different runtime types are unequal;
+- lists compare recursively by length and element equality;
+- functions compare by identity, not by declaration text or behavior.
+
+## 5. Lists and numeric-list vector behavior
+
+### 5.1 Lists
+
+Lists are ordered, zero-indexed, mutable values:
+
+```vec
+let values = [10, 20, 30];
+let names = ["Ada", "Bob"];
 let mixed = [1, "hello", true, nothing];
 let nested = [[1, 2], [3, 4]];
 ```
 
-Lists are ordered, zero-indexed, and mutable.
-
-#### Indexing
+Indexing:
 
 ```vec
-let values = [10, 20, 30];
-
-values[0];   // 10
-values[1];   // 20
+values[0]; // 10
+values[1]; // 20
 ```
 
-An index must be a non-negative whole number and must be within the list bounds.
-
-These are runtime errors:
+An index must be a non-negative whole number inside the list bounds. These are
+runtime errors:
 
 ```vec
 values[-1];
@@ -343,123 +292,90 @@ values[1.5];
 values[10];
 ```
 
-List elements may be replaced:
+Indexed assignment replaces an element and evaluates to the assigned value:
 
 ```vec
 values[1] = 50;
 ```
 
-Vector v1 does not support cyclic list structures. An operation that would make a
-list directly or indirectly contain itself must fail with a runtime error.
+Vector v1 forbids cyclic list structures. An assignment that would make a list
+directly or indirectly contain itself fails at runtime.
 
-### 4.4 Numeric Lists and Vector Behavior
+### 5.2 Numeric lists
 
-A list is always a `list`.
+A list remains a `list`; Vector has no separate permanent vector runtime type.
 
-It does not permanently change into a separate vector type.
-
-Instead, a list whose current elements are all numbers is a **numeric list** and
-supports vector operations.
-
-Example:
+A list whose **current** elements are all numbers is a numeric list. Numeric-list
+eligibility is recomputed from current contents. The empty list counts as a numeric
+list of length zero.
 
 ```vec
 let values = [1, 2, 3];
+values * 2; // [2, 4, 6]
 
-values * 2;   // [2, 4, 6]
-```
-
-If the contents change:
-
-```vec
 values[1] = "two";
+values * 2; // runtime type error
 
-values * 2;   // runtime type error
+values[1] = 2;
+values * 2; // valid again
 ```
 
-If the contents later become numeric again, vector operations become valid again.
+### 5.3 Vector addition
 
-This rule is based on the current contents of the list, matching Vector's dynamic
-runtime type model.
-
-The empty list counts as a numeric list of length zero.
-
-#### Vector Addition
-
-Two numeric lists of equal length may be added element by element:
+Two numeric lists of equal length may be added element-by-element:
 
 ```vec
-[1, 2] + [3, 4]
-```
-
-evaluates to:
-
-```vec
-[4, 6]
+[1, 2] + [3, 4]; // [4, 6]
 ```
 
 Different lengths are a runtime error.
 
-#### Vector Subtraction
+### 5.4 Vector subtraction
 
-Two numeric lists of equal length may be subtracted element by element:
-
-```vec
-[1, 2] - [3, 4]
-```
-
-evaluates to:
+Two numeric lists of equal length may be subtracted element-by-element:
 
 ```vec
-[-2, -2]
+[1, 2] - [3, 4]; // [-2, -2]
 ```
 
 Different lengths are a runtime error.
 
-#### Scalar Multiplication
+### 5.5 Scalar multiplication
 
-A numeric list may be multiplied by a number in either order:
+A numeric list and a number may be multiplied in either order:
 
 ```vec
-[1, 2, 3] * 2
-2 * [1, 2, 3]
+[1, 2, 3] * 2;
+2 * [1, 2, 3];
 ```
 
-Both evaluate to:
+Both produce:
 
 ```vec
 [2, 4, 6]
 ```
 
-List/list multiplication and other matrix operations are not defined by Vector v1.
+List/list multiplication, dot product, magnitude, and matrices are not v1 operators.
 
-#### List Concatenation
+### 5.6 General list concatenation
 
-`+` is not general list concatenation.
+`+` is not general list concatenation. Numeric lists use `+` for vector addition;
+non-numeric lists cannot use `+`.
 
-For numeric lists, `+` means vector addition. For other lists, `+` is a type error.
-
-General list concatenation is explicit and may be provided through the standard
-library:
+Use the built-in:
 
 ```vec
-concat([1, 2], [3, 4])
+concat([1, 2], [3, 4]); // [1, 2, 3, 4]
 ```
 
-which would produce:
+`concat` creates a new **shallow** list. It does not mutate either source list or
+deep-copy nested values.
 
-```vec
-[1, 2, 3, 4]
-```
+## 6. Variables and assignment
 
-This keeps mathematical vector operations unambiguous.
+### 6.1 Declaration
 
-Future matrix operations may build on lists of equal-length numeric lists without
-requiring a separate matrix literal syntax.
-
-## 5. Variables and Assignment
-
-Variables are declared with `let`:
+Variables are declared with `let` and require an initializer:
 
 ```vec
 let x = 10;
@@ -467,7 +383,9 @@ let name = "Vector";
 let enabled = true;
 ```
 
-A declaration requires an initializer.
+The initializer is evaluated before the new binding is introduced.
+
+### 6.2 Assignment
 
 Assignment changes an existing binding:
 
@@ -475,48 +393,42 @@ Assignment changes an existing binding:
 x = 20;
 ```
 
-Assignment to an undeclared identifier is an error:
+Assignment to an undeclared ordinary name is an error:
 
 ```vec
-missing = 20;   // error
+missing = 20; // error
 ```
 
-The right-hand expression is evaluated before the new binding is introduced.
+Assignment expressions evaluate to the assigned value. Assignment is
+right-associative.
 
-### 5.1 Redeclaration
+### 6.3 Redeclaration
 
-Declaring the same name twice in the same scope is an error:
-
-```vec
-let x = 10;
-let x = 20;   // error
-```
-
-Assignment is valid:
+The same name cannot be declared twice in the same lexical scope:
 
 ```vec
 let x = 10;
-x = 20;
+let x = 20; // error
 ```
 
-### 5.2 Shadowing
+### 6.4 Shadowing
 
 A nested scope may declare a new binding with the same name:
 
 ```vec
 let x = 10;
 
-if true {
+{
     let x = 20;
-    print(x);   // 20
+    print(x); // 20
 }
 
-print(x);       // 10
+print(x); // 10
 ```
 
-### 5.3 Assignment to Outer Bindings
+### 6.5 Assignment to enclosing bindings
 
-Assignment resolves the nearest existing lexical binding.
+Assignment resolves the nearest existing lexical binding:
 
 ```vec
 let counter = 0;
@@ -528,221 +440,105 @@ function increase() {
 
 Calling `increase()` changes the outer `counter`.
 
-## 6. Expressions and Operators
+## 7. Expressions and operators
 
-### 6.1 Arithmetic
+### 7.1 Arithmetic
 
-Numeric arithmetic operators are:
-
-```text
-+
--
-*
-/
-%
-```
-
-Examples:
-
-```vec
-2 + 3;
-8 - 5;
-4 * 3;
-5 / 2;
-10 % 3;
-```
-
-Unary negation is supported:
-
-```vec
--5
-```
-
-Arithmetic operands must satisfy the operation's runtime type rules.
-
-### 6.2 Comparison
-
-Comparison operators are:
+Numeric operators are:
 
 ```text
-<
-<=
->
->=
++  -  *  /  %
 ```
 
-Vector v1 defines ordering comparisons for numbers.
+Unary numeric negation uses `-`.
 
-```vec
-5 < 10
-3.5 >= 3
-```
+`+` additionally supports:
 
-Ordering unrelated runtime types is an error.
+- text + text -> text concatenation;
+- numeric list + numeric list -> vector addition.
 
-### 6.3 Equality
+`-` additionally supports numeric-list subtraction, and `*` additionally supports
+numeric-list scalar multiplication as defined above.
 
-Equality operators are:
+No other implicit overload or coercion is performed.
+
+### 7.2 Comparison
+
+Ordering operators are:
 
 ```text
-==
-!=
+<  <=  >  >=
 ```
 
-Equality does not coerce types.
+They are defined for numbers. Ordering unrelated runtime types is a runtime error.
 
-```vec
-5 == 5          // true
-5 == "5"        // false
-"abc" == "abc"  // true
-```
-
-Lists compare their contents recursively:
-
-```vec
-[1, 2] == [1, 2]   // true
-[1, 2] == [2, 1]   // false
-```
-
-`nothing == nothing` is `true`.
-
-Values of different runtime types compare as unequal.
-
-Function values compare by identity.
-
-### 6.4 Logical Operators
-
-Logical operators are words:
+### 7.3 Logical operators
 
 ```text
-and
-or
-not
+and  or  not
 ```
 
-They operate only on booleans.
+These accept booleans only. There is no truthiness.
+
+`and` and `or` short-circuit:
 
 ```vec
-true and false
-true or false
-not true
+false and dangerousCall(); // right side is not evaluated
+true or dangerousCall();   // right side is not evaluated
 ```
 
-There is no truthiness.
+### 7.4 Evaluation order
 
-### 6.5 Strict Boolean Conditions
+Except where short-circuiting skips an operand, expression operands are evaluated
+left-to-right.
 
-Conditions in `if` and `while` must evaluate to a boolean.
+For function calls:
 
-Valid:
+1. the callee is evaluated;
+2. argument count is checked;
+3. arguments are evaluated left-to-right;
+4. the function is called.
 
-```vec
-if age >= 18 {
-    print("Adult");
-}
-```
+A wrong argument count therefore fails before argument expressions run.
 
-Valid when `loggedIn` currently contains a boolean:
-
-```vec
-if loggedIn {
-    print("Welcome");
-}
-```
-
-Invalid:
-
-```vec
-if 5 {
-    print("Invalid");
-}
-
-if "hello" {
-    print("Invalid");
-}
-```
-
-### 6.6 Short-Circuit Evaluation
-
-`and` and `or` short-circuit.
-
-```vec
-false and dangerousCall()
-```
-
-does not call `dangerousCall()`.
-
-```vec
-true or dangerousCall()
-```
-
-also does not call `dangerousCall()`.
-
-### 6.7 Evaluation Order
-
-Expression operands and function arguments are evaluated left-to-right.
-
-```vec
-foo(first(), second());
-```
-
-calls `first()` before `second()`.
-
-### 6.8 Operator Precedence
+### 7.5 Operator precedence
 
 From highest to lowest:
 
-| Precedence | Operators / forms |
-| --- | --- |
-| 1 | Grouping `(...)`, calls `(...)`, indexing `[...]`, qualified access `.` |
-| 2 | Unary `not`, unary `-` |
+| Precedence | Operators/forms |
+| ---: | --- |
+| 1 | grouping `(...)`, calls `(...)`, indexing `[...]`, qualified access `.` |
+| 2 | unary `not`, unary `-` |
 | 3 | `*`, `/`, `%` |
 | 4 | `+`, `-` |
 | 5 | `<`, `<=`, `>`, `>=` |
 | 6 | `==`, `!=` |
 | 7 | `and` |
 | 8 | `or` |
-| 9 | Assignment `=` |
+| 9 | assignment `=` |
 
-Examples:
-
-```vec
-2 + 3 * 4;       // 14
-(2 + 3) * 4;     // 20
-```
-
-Assignment associates right-to-left. The other binary operators above associate
+Assignment associates right-to-left. Other binary operators above associate
 left-to-right.
 
-## 7. Blocks and Scope
+## 8. Blocks and lexical scope
 
-Blocks use braces:
-
-```vec
-{
-    let x = 10;
-    print(x);
-}
-```
-
-Blocks create lexical scopes.
-
-A name declared inside a block is not visible after the block ends:
+Blocks use braces and create lexical scopes:
 
 ```vec
 {
-    let x = 10;
+    let local = 10;
+    print(local);
 }
 
-print(x);   // error
+print(local); // error
 ```
 
-Function calls create function-local scopes whose parent is the lexical
-environment captured when the function was declared.
+Function calls create function-local scopes whose parent is the environment captured
+when the function was declared.
 
-## 8. Conditional Statements
+## 9. Conditional statements
 
-Conditions do not require parentheses.
+Conditions do not require parentheses:
 
 ```vec
 if score >= 90 {
@@ -754,19 +550,13 @@ if score >= 90 {
 }
 ```
 
-Parentheses may still be used for grouping:
+Parentheses may be used for ordinary grouping.
 
-```vec
-if (score >= 80 and score < 90) {
-    print("B");
-}
-```
+Every `if` condition must evaluate to a boolean. Only the selected branch executes.
 
-Only the selected branch executes.
+## 10. Loops
 
-## 9. Loops
-
-### 9.1 While
+### 10.1 While
 
 ```vec
 while x < 10 {
@@ -776,9 +566,9 @@ while x < 10 {
 
 The condition is checked before each iteration and must be boolean.
 
-### 9.2 For-In
+### 10.2 For-in
 
-Vector supports iteration over lists:
+`for` iterates over a list:
 
 ```vec
 for item in items {
@@ -786,70 +576,53 @@ for item in items {
 }
 ```
 
-The iterable expression is evaluated once when the loop starts.
+Semantics:
 
-The values to iterate are captured as a shallow snapshot at loop start. Structural
-changes to the original list during the loop do not change which elements this
-iteration will visit.
+- the iterable expression is evaluated once when the loop starts;
+- it must produce a list;
+- iteration uses a shallow snapshot of the list elements captured at loop start;
+- structural changes to the original list do not change the set of values visited;
+- the loop variable is local to the loop;
+- each iteration uses a fresh iteration scope.
 
-The loop variable is local to the loop and a fresh iteration scope is used for
-each iteration.
-
-Numeric iteration may later be expressed using a standard-library function such as:
+Numeric iteration uses the implemented `range` built-in:
 
 ```vec
-for number in range(1, 10) {
+for number in range(1, 4) {
     print(number);
 }
 ```
 
-### 9.3 Break and Continue
+Output:
 
-`break` exits the nearest enclosing loop:
-
-```vec
-while true {
-    if done {
-        break;
-    }
-}
+```text
+1
+2
+3
 ```
 
-`continue` skips to the next iteration of the nearest enclosing loop:
+### 10.3 Break and continue
 
-```vec
-for item in items {
-    if shouldSkip(item) {
-        continue;
-    }
+`break` exits the nearest enclosing loop. `continue` skips to the next iteration of
+the nearest enclosing loop.
 
-    print(item);
-}
-```
+Using either outside a loop is a syntax/context error.
 
-Using `break` or `continue` outside a loop is an error.
+## 11. Functions
 
-## 10. Functions
+### 11.1 Declaration and calls
 
-Functions are declared with the `function` keyword:
+Functions are named declarations:
 
 ```vec
 function add(a, b) {
     return a + b;
 }
-```
 
-Functions are called with parentheses:
-
-```vec
 let result = add(5, 3);
 ```
 
-### 10.1 Parameters and Arity
-
-Parameters are dynamically typed local bindings.
-
-Argument count is strict:
+Parameters are dynamically typed local bindings. Argument count is strict.
 
 ```vec
 function add(a, b) {
@@ -860,21 +633,10 @@ add(1);       // error
 add(1, 2, 3); // error
 ```
 
-Duplicate parameter names are an error.
+Duplicate parameter names are invalid. Vector v1 has no parameter or return type
+annotations.
 
-Vector v1 does not require or provide type annotations:
-
-```vec
-function add(a, b) {
-    return a + b;
-}
-```
-
-is the canonical form.
-
-### 10.2 Return
-
-A function may return a value:
+### 11.2 Return
 
 ```vec
 function square(x) {
@@ -882,20 +644,14 @@ function square(x) {
 }
 ```
 
-A bare return is allowed and returns `nothing`:
+A bare `return;` returns `nothing`. Reaching the end of a function without executing
+`return` also returns `nothing`.
 
-```vec
-return;
-```
+Using `return` outside a function is invalid.
 
-If execution reaches the end of a function without executing `return`, the
-function returns `nothing`.
+### 11.3 Functions as values
 
-Using `return` outside a function is an error.
-
-### 10.3 Functions as Values
-
-Functions are runtime values.
+Functions are runtime values:
 
 ```vec
 function add(a, b) {
@@ -903,81 +659,75 @@ function add(a, b) {
 }
 
 let operation = add;
-let result = operation(2, 3);
+print(operation(2, 3));
 ```
 
-Named functions may be declared in lexical scopes. A function captures the lexical
-environment in which it is declared, allowing closures.
+Function equality is identity-based.
 
-Function declarations are not hoisted. A function binding becomes available when
-its declaration executes. The function's own name is available inside its body so
-that recursion works.
+### 11.4 Closures and recursion
 
-## 11. Top-Level Execution
+A function captures the lexical environment in which its declaration executes.
+That captured environment remains available if the function escapes its original
+scope.
 
-Vector does not require a `main()` function.
+Function declarations are not hoisted: the binding becomes available when the
+declaration executes. The function's own binding is available to its body, enabling
+recursion.
 
-A source file may contain executable top-level code:
+```vec
+function factorial(value) {
+    if value <= 1 {
+        return 1;
+    }
+
+    return value * factorial(value - 1);
+}
+```
+
+## 12. Top-level execution
+
+Vector does not require a `main()` function. A source file may contain executable
+top-level code, which runs in source order:
 
 ```vec
 let x = 5;
 print(x);
 ```
 
-When a file is launched directly, its top-level statements execute in source order.
+## 13. Modules and multiple files
 
-## 12. Modules and Multiple Files
-
-Every `.vec` file is a module.
-
-A program may import local modules:
+Every loaded `.vec` source file is a module. A program may import local modules:
 
 ```vec
 import lib.geometry;
 ```
 
-If the program entry file is:
+If the entry file is:
 
 ```text
 MyProgram/main.vec
 ```
 
-then:
-
-```vec
-import lib.geometry;
-```
-
-resolves to:
+then `import lib.geometry;` resolves to:
 
 ```text
 MyProgram/lib/geometry.vec
 ```
 
-The directory containing the launched entry file is the Vector v1 program root.
+The entry file's directory is the program root for file execution.
 
-Imports use qualified module paths made from identifiers separated by `.`.
+### 13.1 Qualified access
 
-### 12.1 Full Qualified Access
-
-Imported members are accessed through the module's full path.
+Imported members are accessed through the module's full path:
 
 ```vec
 import lib.geometry;
-
-let distance = lib.geometry.distance(a, b);
+lib.geometry.distance(a, b);
 ```
 
-Vector does not shorten that automatically to:
+Vector does not automatically shorten that to `geometry.distance(...)`.
 
-```vec
-geometry.distance(a, b);
-```
-
-This is intentional. Full qualification keeps dependencies explicit and avoids
-collisions between modules with the same final name.
-
-For example:
+Different full paths remain distinct:
 
 ```vec
 import game.geometry;
@@ -987,278 +737,247 @@ game.geometry.distance(a, b);
 math.geometry.distance(a, b);
 ```
 
-### 12.2 Module Scope
+### 13.2 Module scope
 
-Each module has its own isolated module scope.
+Each module has its own isolated top-level environment.
 
-A module-scope declaration does not become an unqualified global in the importing
-module.
+Every top-level declaration in an imported module is externally accessible through
+that module's full qualified path. Vector v1 has no `export` keyword.
 
-For Vector v1, every module-scope declaration is accessible through the imported
-module's qualified path. There is no `export` keyword in Vector v1.
-
-Example:
-
-```vec
-// lib/geometry.vec
-
-let pi = 3.14159;
-
-function distance(a, b) {
-    // ...
-}
-```
-
-After:
-
-```vec
-import lib.geometry;
-```
-
-the importer may use:
-
-```vec
-lib.geometry.pi;
-lib.geometry.distance(a, b);
-```
-
+A module member does not become an unqualified variable in the importing module.
 Block-local and function-local bindings are never module members.
 
-### 12.3 Import Placement
+Imports are not automatically re-exported: a module can use modules it directly
+imports, while its importer must import a dependency itself if it wants direct
+qualified access to that dependency.
 
-Imports are module-level declarations.
+### 13.3 Import placement
 
-They must appear before the module's other top-level declarations and executable
-statements.
+Imports are top-level declarations and must appear before other top-level
+declarations or executable statements within a source file/submission.
 
-Imports are not allowed inside functions, loops, conditionals, or other blocks in
-Vector v1.
+Imports are not allowed inside functions, loops, conditionals, or blocks.
 
-### 12.4 Module Initialization
+### 13.4 Module initialization and caching
 
-A module's top-level code executes when the module is first imported.
+A module's top-level code executes when it is first imported. Each module is
+initialized at most once per program execution/module-loader lifetime, even when
+multiple imports reach it.
 
-Each module is initialized at most once during one program execution, even if it
-is reachable through multiple imports.
+Dependencies initialize as their importing module executes its import statements.
 
-### 12.5 Circular Imports
+### 13.5 Circular imports
 
-Circular module dependencies are an error in Vector v1.
+Circular dependencies are errors. Diagnostics identify the dependency cycle when
+possible.
 
-Example:
+### 13.6 Module namespace
 
-```text
-a.vec imports b.vec
-b.vec imports a.vec
-```
+Qualified module paths occupy a namespace separate from ordinary variable bindings.
+General object/member access is not part of Vector v1.
 
-must produce a module diagnostic describing the dependency cycle.
+### 13.7 Packages and native libraries
 
-### 12.6 Module Namespace
+Vector v1 has no package manager, package manifest, external-library import syntax,
+or unrestricted .NET reflection/API access. These are future directions.
 
-Qualified module paths occupy a module namespace separate from ordinary variable
-bindings.
+## 14. Core built-ins
 
-A dotted expression that matches an imported module path resolves through the
-module namespace.
+The following built-ins are globally available when no ordinary lexical binding of
+the same name shadows them.
 
-General object/member access is reserved for future language versions.
+Built-in arity is strict. Declaring a variable or function with the same name may
+shadow a built-in in that lexical scope; built-ins themselves are not assignable
+ordinary bindings.
 
-### 12.7 Future Packages and External Libraries
+### 14.1 `print(value)`
 
-Vector v1 does not require a package manager or external package manifest.
+Writes one formatted value followed by a newline and returns `nothing`.
 
-The module design is intended to support future packages without changing source
-semantics. A future package may provide qualified Vector modules that are imported
-through the same model.
+Vector v1 display formatting:
 
-Native or .NET functionality should be exposed through a controlled host API or
-standard-library modules. Vector should not expose unrestricted arbitrary .NET
-reflection or `System.*` access by default.
+- number -> invariant-culture numeric text;
+- top-level text -> text contents without surrounding quotes;
+- boolean -> `true` or `false`;
+- `nothing` -> `nothing`;
+- list -> bracketed comma-separated recursive display;
+- function -> `<function>`.
 
-A future project manifest may define fields such as:
+Text values nested inside displayed lists retain double quotes so list structure and
+text values remain unambiguous. This rule applies recursively to nested lists. A
+top-level text value is still printed without surrounding quotes.
 
-```text
-name
-version
-language version
-entry file
-dependencies
-capabilities/permissions
-```
-
-Those features are outside Vector v1.
-
-## 13. Core Built-Ins and Standard Library Direction
-
-### 13.1 Required Core Built-In
-
-Vector v1 requires:
-
-```vec
-print(value);
-```
-
-`print` writes one value followed by a newline.
-
-Its basic display behavior is:
-
-- `number` -> culture-independent numeric text
-- `text` -> the text contents without surrounding quotes
-- `boolean` -> `true` or `false`
-- `nothing` -> `nothing`
-- `list` -> bracketed list notation
-- `function` -> an implementation-defined descriptive function representation
-
-Example:
+Examples:
 
 ```vec
 print(20);
 print("hello");
-print([1, 2, 3]);
+print([1, "two", true, ["nested"]]);
 ```
 
-may display:
+Output:
 
 ```text
 20
 hello
-[1, 2, 3]
+[1, "two", true, ["nested"]]
 ```
 
-Strings nested inside displayed lists should retain quotes so list structure remains
-unambiguous.
+### 14.2 `length(value)`
 
-### 13.2 Planned Library Functions
+Accepts a list or text.
 
-The following names are useful candidates for the early standard library but are
-not all required by the first interpreter milestone:
+- list -> element count;
+- text -> count of Unicode scalar values (Unicode runes), not UTF-16 code units.
 
-```text
-text(value)
-number(value)
-length(value)
-concat(a, b)
-range(start, end)
-type(value)
-```
+Other value types are runtime errors.
 
-Later functionality should prefer clear modules rather than placing a large standard
-library into the global namespace.
+### 14.3 `concat(listA, listB)`
 
-Possible future modules include:
+Requires two lists and returns a new shallow list containing the elements of the
+first followed by the second.
+
+### 14.4 `text(value)`
+
+Returns text using the same value display rules as `print`, but without writing to
+the host. Passing text returns the text value unchanged.
+
+### 14.5 `number(value)`
+
+Accepts:
+
+- a number -> returned unchanged;
+- text containing a finite invariant-culture number -> parsed to `number`.
+
+Other values or non-numeric/non-finite text produce a runtime error.
+
+### 14.6 `range(start, end)`
+
+Both arguments must be finite whole numbers representable by the implementation's
+integer range.
+
+The result is an ascending list with `start` inclusive and `end` exclusive:
 
 ```vec
-import math;
-import text;
-import io;
-import collections;
+range(1, 4); // [1, 2, 3]
 ```
 
-## 14. Errors and Diagnostics
+If `start >= end`, the result is `[]`. Descending ranges and a custom step are not
+part of v1.
 
-Vector distinguishes lexical, syntax, module, name/scope, and runtime errors.
+## 15. Errors and diagnostics
 
-Diagnostics should contain structured source information rather than being plain
-strings.
+Vector distinguishes lexical, syntax/context, module, name/scope, and runtime
+failures.
 
-The implementation should track at least:
+Diagnostics are structured and include:
 
 ```text
-SourcePosition
-    line
-    column
-    absolute offset
-
-SourceSpan
-    start
-    end
-
-Diagnostic
-    code
-    message
-    source file
-    span
+code
+message
+severity
+source span (offset, line, column)
+source identity/file when available
+source text when available
 ```
 
-Example presentation:
+The command-line formatter presents diagnostics in the general form:
 
 ```text
-VECxxxx: Cannot add number and text.
-main.vec:4:12
-
-let total = price + "5";
-                    ^^^
+path\program.vec:2:1: error RuntimeTypeError: ...
+    value + "bad";
+    ^^^^^^^^^^^^^
 ```
 
-Exact diagnostic codes will be assigned during implementation.
+Errors raised while executing or calling code from an imported module retain the
+originating module file/source information.
 
-### 14.1 Lexical and Parse Errors
+### 15.1 Lexical and parse errors
 
-The lexer and parser should recover where practical so one pass may report more
-than one independent source error.
+The lexer/parser recover where practical and may report multiple independent
+problems. Invalid parsed source is not executed.
 
-Invalid source must not be executed.
+### 15.2 Runtime errors
 
-### 14.2 Runtime Errors
-
-A runtime error stops normal execution of the current program.
-
+A runtime error stops normal execution of the current file/program execution.
 Examples include:
 
-- using an undeclared variable
-- assigning to an undeclared variable
-- invalid operand types
-- non-boolean conditions
-- division by zero
-- invalid list indexing
-- incompatible numeric-list lengths
-- wrong function argument count
-- illegal `return`, `break`, or `continue`
-- module loading failures
-- circular imports
+- undefined variable lookup or assignment;
+- invalid operand types;
+- non-boolean conditions;
+- division/remainder by zero;
+- invalid list indexing;
+- vector length mismatch;
+- cyclic-list creation;
+- calling a non-function;
+- wrong function argument count;
+- module loading/circular-import failures.
 
-The interpreter must not guess, coerce, or silently repair invalid operations.
+Vector does not guess, coerce, or silently repair invalid operations.
 
-### 14.3 REPL Errors
+### 15.3 REPL errors
 
-A runtime or syntax error in the REPL aborts the current submitted input but does
-not terminate the REPL process itself.
+A lexical, syntax, module, or runtime failure aborts the current REPL submission but
+does not terminate the REPL process. State established by earlier successful
+submissions remains available.
 
-Previously completed REPL declarations remain available.
+## 16. Execution interfaces
 
-## 15. Execution Interfaces
+### 16.1 File execution
 
-Vector supports two execution modes.
-
-### 15.1 File Execution
+Conceptually:
 
 ```text
 vector program.vec
 ```
 
-The supplied file becomes the entry module.
+With the repository CLI project:
 
-Its containing directory becomes the program root for local module resolution.
+```powershell
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- program.vec
+```
 
-### 15.2 REPL
+The runner requires exactly one `.vec` argument in file mode and uses strict UTF-8
+input. The entry file's directory becomes the module root.
 
-Launching Vector without a file starts the interactive REPL:
+Process exit codes:
 
 ```text
-vector
-> let x = 10;
-> print(x);
+0  success
+1  Vector lexical/syntax/module/runtime failure
+2  CLI or file-input failure
+```
+
+### 16.2 REPL
+
+Launching the CLI without arguments starts the REPL:
+
+```powershell
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj
+```
+
+Example:
+
+```text
+Vector REPL. Type :exit or :quit to leave.
+vector> let x = 10;
+vector> x;
 10
 ```
 
-REPL submissions share a persistent top-level environment.
+REPL rules:
 
-The REPL may accept multiline input when a block or expression is incomplete.
+- successful submissions share one top-level environment;
+- functions/variables persist between submissions;
+- imported module state is retained for that REPL session;
+- an expression statement whose final value is not `nothing` is displayed;
+- unmatched `(`, `{`, or `[` causes continuation input with the `...> ` prompt;
+- `:exit` and `:quit` exit when entered as a top-level REPL command;
+- module paths resolve relative to the directory from which the REPL was created.
 
-## 16. Formal Grammar
+## 17. Formal grammar
 
-The following EBNF-style grammar defines the intended Vector v1 syntax.
+The following EBNF-style grammar defines Vector v1 syntax.
 
 ```text
 program
@@ -1371,81 +1090,66 @@ listLiteral
     -> "[" ( expression ( "," expression )* )? "]" ;
 ```
 
-Assignment syntax is intentionally broad in the grammar. Semantic validation
-restricts assignable targets in Vector v1 to:
+The assignment grammar is intentionally broad. Vector v1 semantic validation only
+permits these assignment target shapes:
 
 ```text
 identifier
 list indexing expression
 ```
 
-For example:
+Examples:
 
 ```vec
 x = 10;
 values[0] = 10;
 ```
 
-are valid assignment shapes.
+Assignment to literals, call results, or imported module members is invalid.
 
-Assignment to a function call result, literal, or imported module member is not
-valid in Vector v1.
+Context rules additionally require:
 
-## 17. Future Natural-Language Compatibility
+- imports only at top level and before other top-level declarations/statements;
+- `return` inside a function;
+- `break`/`continue` inside a loop;
+- unique function parameter names.
 
-Formal Vector is the canonical inspectable representation.
+## 18. Future natural-language compatibility
 
-A future user may write:
+Formal Vector source remains the canonical inspectable representation.
+
+A future front end may translate:
 
 ```text
 Create a variable called x with the value 10, then display x.
 ```
 
-A natural-language front end may produce:
+into:
 
 ```vec
 let x = 10;
 print(x);
 ```
 
-Similarly:
+The future layer may accept many human phrasings, but generated behavior should map
+to the deterministic semantics in this specification. Generated Vector should remain
+visible for inspection whenever practical.
 
-```text
-For each positive number in values, add it to the total.
-```
+## 19. Version 1 non-goals
 
-may become formal Vector such as:
+Vector v1 does not require:
 
-```vec
-for value in values {
-    if value > 0 {
-        total = total + value;
-    }
-}
-```
+- unrestricted natural-language parsing in the core language;
+- static type declarations;
+- implicit type coercion or truthiness;
+- classes or a general object/member system;
+- arbitrary .NET API access;
+- package management or package publishing;
+- a production-scale standard library;
+- bytecode/native compilation;
+- an integrated debugger;
+- matrix operations beyond the numeric-list foundation;
+- a custom IDE.
 
-The future natural-language layer may accept many human phrasings, but they should
-map to one deterministic set of Vector semantics.
-
-Generated Vector source should remain visible before execution whenever practical
-so users can inspect what the natural-language system understood.
-
-## 18. Version 1 Non-Goals
-
-The initial language design does not require:
-
-- unrestricted natural-language parsing in the core language
-- static type declarations
-- implicit type coercion
-- truthiness
-- classes or a general object system
-- arbitrary .NET API access
-- a package manager
-- package publishing
-- a production-scale standard library
-- bytecode or native compilation
-- an integrated debugger
-- matrix operations beyond the numeric-list foundation
-- a custom IDE
-
-These may be added later without changing the core principles above.
+These can be explored after the interpreter MVP without changing the core strictness,
+lexical-scope, and diagnostic principles above.
