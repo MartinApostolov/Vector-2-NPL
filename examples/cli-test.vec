@@ -1,0 +1,9 @@
+import lib.math;
+
+let values = [];
+
+for number in range(1, 4) {
+    values = concat(values, [lib.math.double(number)]);
+}
+
+print(values);
