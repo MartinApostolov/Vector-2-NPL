@@ -1,0 +1,5 @@
+import lib.geometry;
+
+let moved = lib.geometry.move([1, 2], [3, 4]);
+print(moved);
+print(lib.geometry.scale(moved, 2));

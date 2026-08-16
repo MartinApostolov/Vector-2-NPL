@@ -1,0 +1,5 @@
+let value = "20";
+print(value);
+
+value = 20;
+print(value + 5);

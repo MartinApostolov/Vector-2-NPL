@@ -1,0 +1,5 @@
+let names = ["Ada", "Bob"];
+let everyone = concat(names, ["Cy"]);
+
+print(length(everyone));
+print(everyone[1]);

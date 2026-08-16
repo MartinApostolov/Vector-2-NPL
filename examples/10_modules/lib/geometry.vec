@@ -1,0 +1,7 @@
+function move(point, delta) {
+    return point + delta;
+}
+
+function scale(point, factor) {
+    return point * factor;
+}
