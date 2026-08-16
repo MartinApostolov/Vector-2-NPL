@@ -12,9 +12,14 @@ internal static class Program
 
     public static int Main(string[] args)
     {
+        if (args.Length == 0)
+        {
+            return new Repl().Run();
+        }
+
         if (args.Length != 1)
         {
-            Console.Error.WriteLine("Usage: vector <file.vec>");
+            Console.Error.WriteLine("Usage: vector [file.vec]");
             return CommandLineFailureExitCode;
         }
 
