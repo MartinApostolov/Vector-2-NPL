@@ -1,5 +1,6 @@
 using Vector.Core.Diagnostics;
 using Vector.Core.Lexing;
+using Vector.Core.Runtime.ControlFlow;
 using Vector.Core.Runtime.Values;
 using Vector.Core.Source;
 using Vector.Core.Syntax;
@@ -45,6 +46,10 @@ public sealed class Interpreter
             VariableDeclaration declaration => ExecuteVariableDeclaration(declaration),
             BlockStatement block => ExecuteBlock(block),
             IfStatement conditional => ExecuteIf(conditional),
+            WhileStatement loop => ExecuteWhile(loop),
+            ForStatement loop => ExecuteFor(loop),
+            BreakStatement breakStatement => throw new BreakSignal(breakStatement.Span),
+            ContinueStatement continueStatement => throw new ContinueSignal(continueStatement.Span),
             _ => throw new InvalidOperationException(
                 $"Statement type '{statement.GetType().Name}' is not implemented by this runtime stage.")
         };
@@ -95,6 +100,90 @@ public sealed class Interpreter
         }
 
         return NothingValue.Instance;
+    }
+
+    private VectorValue ExecuteWhile(WhileStatement loop)
+    {
+        while (true)
+        {
+            var condition = RequireBoolean(
+                Evaluate(loop.Condition),
+                loop.Condition.Span,
+                "A 'while' condition must be a boolean");
+
+            if (!condition.Value)
+            {
+                break;
+            }
+
+            try
+            {
+                ExecuteBlock(loop.Body);
+            }
+            catch (ContinueSignal)
+            {
+                continue;
+            }
+            catch (BreakSignal)
+            {
+                break;
+            }
+        }
+
+        return NothingValue.Instance;
+    }
+
+    private VectorValue ExecuteFor(ForStatement loop)
+    {
+        // The iterable expression is evaluated exactly once. The element sequence is
+        // then captured as a shallow snapshot so replacing entries in the original
+        // list during the loop does not change which values this iteration visits.
+        var iterable = RequireList(
+            Evaluate(loop.Iterable),
+            loop.Iterable.Span,
+            "A 'for' loop requires a list iterable");
+        var snapshot = iterable.Elements.ToArray();
+
+        foreach (var item in snapshot)
+        {
+            try
+            {
+                ExecuteForIteration(loop, item);
+            }
+            catch (ContinueSignal)
+            {
+                continue;
+            }
+            catch (BreakSignal)
+            {
+                break;
+            }
+        }
+
+        return NothingValue.Instance;
+    }
+
+    private void ExecuteForIteration(ForStatement loop, VectorValue item)
+    {
+        var previous = _environment;
+        _environment = new Environment(previous);
+
+        try
+        {
+            // The iteration environment is also the body block's lexical scope. This
+            // keeps the loop variable local, gives every iteration a fresh scope, and
+            // makes same-scope redeclaration rules apply normally inside the body.
+            _environment.Declare(loop.VariableName, item, loop.Span);
+
+            foreach (var statement in loop.Body.Statements)
+            {
+                Execute(statement);
+            }
+        }
+        finally
+        {
+            _environment = previous;
+        }
     }
 
     public VectorValue Evaluate(ExpressionSyntax expression)
