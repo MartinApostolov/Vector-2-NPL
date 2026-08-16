@@ -34,6 +34,8 @@ public sealed class Interpreter
             UnaryExpression unary => EvaluateUnary(unary),
             BinaryExpression binary => EvaluateBinary(binary),
             AssignmentExpression assignment => EvaluateAssignment(assignment),
+            ListExpression list => EvaluateList(list),
+            IndexExpression index => EvaluateIndex(index),
             _ => throw new InvalidOperationException(
                 $"Expression type '{expression.GetType().Name}' is not implemented by this runtime stage.")
         };
@@ -50,10 +52,35 @@ public sealed class Interpreter
                 $"Unsupported literal payload type '{expression.Value.GetType().Name}'.")
         };
 
+    private VectorValue EvaluateList(ListExpression expression)
+    {
+        var elements = new VectorValue[expression.Elements.Count];
+
+        for (var i = 0; i < expression.Elements.Count; i++)
+        {
+            elements[i] = Evaluate(expression.Elements[i]);
+        }
+
+        return new ListValue(elements);
+    }
+
+    private VectorValue EvaluateIndex(IndexExpression expression)
+    {
+        // Target and index are ordinary expression operands and evaluate left-to-right.
+        var target = RequireList(
+            Evaluate(expression.Target),
+            expression.Target.Span,
+            "Indexing requires a list target");
+        var index = RequireListIndex(Evaluate(expression.Index), expression.Index.Span);
+
+        EnsureIndexInRange(target, index, expression.Index.Span);
+        return target[index];
+    }
+
     private VectorValue EvaluateAssignment(AssignmentExpression expression)
     {
-        // The right side is evaluated before the binding changes, as required by the
-        // language specification. Indexed assignment is added with list runtime support.
+        // Assignment is right-associative, so the value is evaluated before the target
+        // binding or indexed element is changed.
         var value = Evaluate(expression.Value);
 
         if (expression.Target is NameExpression name)
@@ -62,8 +89,30 @@ public sealed class Interpreter
             return value;
         }
 
+        if (expression.Target is IndexExpression indexExpression)
+        {
+            var target = RequireList(
+                Evaluate(indexExpression.Target),
+                indexExpression.Target.Span,
+                "Indexed assignment requires a list target");
+            var index = RequireListIndex(Evaluate(indexExpression.Index), indexExpression.Index.Span);
+
+            EnsureIndexInRange(target, index, indexExpression.Index.Span);
+
+            if (target.WouldCreateCycle(value))
+            {
+                throw new RuntimeError(
+                    DiagnosticCode.CyclicList,
+                    "A Vector list cannot directly or indirectly contain itself.",
+                    expression.Span);
+            }
+
+            target[index] = value;
+            return value;
+        }
+
         throw new InvalidOperationException(
-            "Indexed assignment is not implemented until list runtime support is added.");
+            $"Assignment target type '{expression.Target.GetType().Name}' is not supported.");
     }
 
     private VectorValue EvaluateUnary(UnaryExpression expression)
@@ -105,8 +154,8 @@ public sealed class Interpreter
         return expression.OperatorToken.Kind switch
         {
             TokenKind.Plus => EvaluateAddition(left, right, expression),
-            TokenKind.Minus => EvaluateNumericBinary(left, right, expression, (a, b) => a - b),
-            TokenKind.Star => EvaluateNumericBinary(left, right, expression, (a, b) => a * b),
+            TokenKind.Minus => EvaluateSubtraction(left, right, expression),
+            TokenKind.Star => EvaluateMultiplication(left, right, expression),
             TokenKind.Slash => EvaluateDivision(left, right, expression),
             TokenKind.Percent => EvaluateRemainder(left, right, expression),
             TokenKind.Less => EvaluateComparison(left, right, expression, (a, b) => a < b),
@@ -175,27 +224,118 @@ public sealed class Interpreter
             return new TextValue(leftText.Value + rightText.Value);
         }
 
+        if (left is ListValue leftList && right is ListValue rightList)
+        {
+            return EvaluateVectorPair(
+                leftList,
+                rightList,
+                expression,
+                (a, b) => a + b);
+        }
+
         throw CreateTypeError(
-            $"Operator '+' requires two numbers or two text values, but received {left.TypeName} and {right.TypeName}.",
+            $"Operator '+' requires two numbers, two text values, or two numeric lists, but received {left.TypeName} and {right.TypeName}.",
             expression.Span);
     }
 
-    private static VectorValue EvaluateNumericBinary(
+    private static VectorValue EvaluateSubtraction(
         VectorValue left,
         VectorValue right,
+        BinaryExpression expression)
+    {
+        if (left is NumberValue leftNumber && right is NumberValue rightNumber)
+        {
+            return new NumberValue(leftNumber.Value - rightNumber.Value);
+        }
+
+        if (left is ListValue leftList && right is ListValue rightList)
+        {
+            return EvaluateVectorPair(
+                leftList,
+                rightList,
+                expression,
+                (a, b) => a - b);
+        }
+
+        throw CreateTypeError(
+            $"Operator '-' requires two numbers or two numeric lists, but received {left.TypeName} and {right.TypeName}.",
+            expression.Span);
+    }
+
+    private static VectorValue EvaluateMultiplication(
+        VectorValue left,
+        VectorValue right,
+        BinaryExpression expression)
+    {
+        if (left is NumberValue leftNumber && right is NumberValue rightNumber)
+        {
+            return new NumberValue(leftNumber.Value * rightNumber.Value);
+        }
+
+        if (left is ListValue leftList && right is NumberValue rightScalar)
+        {
+            return EvaluateScalarMultiplication(leftList, rightScalar, expression.Left.Span);
+        }
+
+        if (left is NumberValue leftScalar && right is ListValue rightList)
+        {
+            return EvaluateScalarMultiplication(rightList, leftScalar, expression.Right.Span);
+        }
+
+        throw CreateTypeError(
+            $"Operator '*' requires two numbers or a numeric list and a number, but received {left.TypeName} and {right.TypeName}.",
+            expression.Span);
+    }
+
+    private static ListValue EvaluateVectorPair(
+        ListValue left,
+        ListValue right,
         BinaryExpression expression,
         Func<double, double, double> operation)
     {
-        var leftNumber = RequireNumber(
+        RequireNumericList(
             left,
             expression.Left.Span,
-            $"Operator '{expression.OperatorToken.Text}' requires number operands");
-        var rightNumber = RequireNumber(
+            $"Operator '{expression.OperatorToken.Text}' requires numeric lists");
+        RequireNumericList(
             right,
             expression.Right.Span,
-            $"Operator '{expression.OperatorToken.Text}' requires number operands");
+            $"Operator '{expression.OperatorToken.Text}' requires numeric lists");
 
-        return new NumberValue(operation(leftNumber.Value, rightNumber.Value));
+        if (left.Count != right.Count)
+        {
+            throw new RuntimeError(
+                DiagnosticCode.VectorLengthMismatch,
+                $"Vector operation '{expression.OperatorToken.Text}' requires lists of equal length, but received lengths {left.Count} and {right.Count}.",
+                expression.Span);
+        }
+
+        var result = new VectorValue[left.Count];
+        for (var i = 0; i < left.Count; i++)
+        {
+            var leftNumber = (NumberValue)left.Elements[i];
+            var rightNumber = (NumberValue)right.Elements[i];
+            result[i] = new NumberValue(operation(leftNumber.Value, rightNumber.Value));
+        }
+
+        return new ListValue(result);
+    }
+
+    private static ListValue EvaluateScalarMultiplication(
+        ListValue list,
+        NumberValue scalar,
+        SourceSpan listSpan)
+    {
+        RequireNumericList(list, listSpan, "Scalar multiplication requires a numeric list");
+
+        var result = new VectorValue[list.Count];
+        for (var i = 0; i < list.Count; i++)
+        {
+            var number = (NumberValue)list.Elements[i];
+            result[i] = new NumberValue(number.Value * scalar.Value);
+        }
+
+        return new ListValue(result);
     }
 
     private static VectorValue EvaluateDivision(
@@ -284,6 +424,53 @@ public sealed class Interpreter
         }
 
         throw CreateTypeError($"{operation}, but received {value.TypeName}.", span);
+    }
+
+    private static ListValue RequireList(VectorValue value, SourceSpan span, string operation)
+    {
+        if (value is ListValue list)
+        {
+            return list;
+        }
+
+        throw CreateTypeError($"{operation}, but received {value.TypeName}.", span);
+    }
+
+    private static void RequireNumericList(ListValue list, SourceSpan span, string operation)
+    {
+        if (!list.IsNumericList)
+        {
+            throw CreateTypeError($"{operation}, but the list contains a non-number value.", span);
+        }
+    }
+
+    private static int RequireListIndex(VectorValue value, SourceSpan span)
+    {
+        var number = RequireNumber(value, span, "A list index must be a number");
+
+        if (!double.IsFinite(number.Value)
+            || number.Value < 0d
+            || number.Value != Math.Truncate(number.Value)
+            || number.Value > int.MaxValue)
+        {
+            throw new RuntimeError(
+                DiagnosticCode.InvalidListIndex,
+                $"A list index must be a non-negative whole number, but received {number.Value}.",
+                span);
+        }
+
+        return (int)number.Value;
+    }
+
+    private static void EnsureIndexInRange(ListValue list, int index, SourceSpan span)
+    {
+        if (index >= list.Count)
+        {
+            throw new RuntimeError(
+                DiagnosticCode.ListIndexOutOfRange,
+                $"List index {index} is outside the valid range for a list of length {list.Count}.",
+                span);
+        }
     }
 
     private static RuntimeError CreateTypeError(string message, SourceSpan span) =>

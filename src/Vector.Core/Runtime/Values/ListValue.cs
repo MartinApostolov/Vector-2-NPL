@@ -29,6 +29,18 @@ public sealed class ListValue : VectorValue
 
     public bool IsNumericList => _elements.All(element => element.Kind == VectorValueKind.Number);
 
+    /// <summary>
+    /// Returns true when placing <paramref name="value"/> inside this list would make
+    /// this list directly or indirectly contain itself.
+    /// </summary>
+    public bool WouldCreateCycle(VectorValue value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        return value is ListValue list
+            && ContainsReference(list, this, new HashSet<ListValue>(ReferenceEqualityComparer.Instance));
+    }
+
     public override bool Equals(VectorValue? other)
     {
         if (ReferenceEquals(this, other))
@@ -63,6 +75,32 @@ public sealed class ListValue : VectorValue
         }
 
         return hash.ToHashCode();
+    }
+
+    private static bool ContainsReference(
+        ListValue current,
+        ListValue target,
+        HashSet<ListValue> visited)
+    {
+        if (ReferenceEquals(current, target))
+        {
+            return true;
+        }
+
+        if (!visited.Add(current))
+        {
+            return false;
+        }
+
+        foreach (var element in current._elements)
+        {
+            if (element is ListValue nested && ContainsReference(nested, target, visited))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static VectorValue RequireValue(VectorValue? value) =>

@@ -22,5 +22,9 @@ public enum DiagnosticCode
     VariableAlreadyDeclared,
     UndefinedVariable,
     RuntimeTypeError,
-    DivisionByZero
+    DivisionByZero,
+    InvalidListIndex,
+    ListIndexOutOfRange,
+    VectorLengthMismatch,
+    CyclicList
 }
