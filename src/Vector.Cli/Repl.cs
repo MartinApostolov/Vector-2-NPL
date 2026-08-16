@@ -7,6 +7,7 @@ using Vector.Core.Runtime;
 using Vector.Core.Runtime.Host;
 using Vector.Core.Runtime.Values;
 using Vector.Core.Source;
+using Vector.Core.StandardLibrary;
 using Vector.Core.Syntax.Statements;
 
 namespace Vector.Cli;
@@ -41,7 +42,7 @@ public sealed class Repl
             : Path.GetFullPath(programRoot);
         var moduleLoader = new ModuleLoader(
             new ModuleResolver(root),
-            nativeModules ?? new NativeModuleRegistry());
+            nativeModules ?? StandardLibraryRegistry.CreateDefault());
         _interpreter = new Interpreter(
             host: new VectorHost(_output.WriteLine),
             moduleLoader: moduleLoader);

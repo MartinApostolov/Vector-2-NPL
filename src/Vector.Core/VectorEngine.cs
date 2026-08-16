@@ -7,6 +7,7 @@ using Vector.Core.Runtime;
 using Vector.Core.Runtime.Host;
 using Vector.Core.Runtime.Values;
 using Vector.Core.Source;
+using Vector.Core.StandardLibrary;
 
 namespace Vector.Core;
 
@@ -17,7 +18,7 @@ public sealed class VectorEngine
 {
     public VectorEngine(NativeModuleRegistry? nativeModules = null)
     {
-        NativeModules = nativeModules ?? new NativeModuleRegistry();
+        NativeModules = nativeModules ?? StandardLibraryRegistry.CreateDefault();
     }
 
     public NativeModuleRegistry NativeModules { get; }

@@ -17,7 +17,8 @@ public sealed class ExampleProgramTests
             Case("examples/07_lists.vec", "3", "Bob"),
             Case("examples/08_vectors.vec", "[5, 7, 9]", "[2, 4, 6]"),
             Case("examples/09_scopes.vec", "20", "10", "11"),
-            Case("examples/10_modules/main.vec", "[4, 6]", "[8, 12]")
+            Case("examples/10_modules/main.vec", "[4, 6]", "[8, 12]"),
+            Case("examples/11_native_math.vec", "5", "10", "7", "3", "256", System.Math.PI.ToString("G", System.Globalization.CultureInfo.InvariantCulture), System.Math.E.ToString("G", System.Globalization.CultureInfo.InvariantCulture))
         };
 
     [Theory]

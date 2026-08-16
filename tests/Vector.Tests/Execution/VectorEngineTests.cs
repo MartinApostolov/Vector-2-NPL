@@ -113,10 +113,10 @@ public sealed class VectorEngineTests
     public void EngineExecutesImportedModuleUsingExplicitProgramRoot()
     {
         using var program = new TemporaryProgram();
-        program.WriteModule("lib.math", "function add(a, b) { return a + b; }");
+        program.WriteModule("lib.source_math", "function add(a, b) { return a + b; }");
 
         var result = new VectorEngine().Execute(
-            "import lib.math; lib.math.add(6, 7);",
+            "import lib.source_math; lib.source_math.add(6, 7);",
             program.Root);
 
         Assert.True(result.Success);

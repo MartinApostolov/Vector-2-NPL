@@ -184,10 +184,10 @@ public sealed class ReplTests
     public void ReplCanImportModuleFromConfiguredProgramRoot()
     {
         using var program = new TemporaryProgram();
-        program.WriteModule("lib.math", "function triple(value) { return value * 3; }");
+        program.WriteModule("lib.source_math", "function triple(value) { return value * 3; }");
 
         var session = Run(
-            "import lib.math;\nlib.math.triple(4);\n:exit\n",
+            "import lib.source_math;\nlib.source_math.triple(4);\n:exit\n",
             program.Root);
 
         Assert.Contains("12", session.Output);

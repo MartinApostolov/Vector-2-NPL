@@ -188,13 +188,13 @@ public sealed class InterpreterIntegrationTests
     public void QualifiedModuleFunctionCanParticipateInMainProgramFlow()
     {
         using var program = new TemporaryProgram();
-        program.WriteModule("lib.math", "function double(value) { return value * 2; }");
+        program.WriteModule("lib.source_math", "function double(value) { return value * 2; }");
 
         const string source = """
-            import lib.math;
+            import lib.source_math;
             let total = 0;
             for value in range(1, 4) {
-                total = total + lib.math.double(value);
+                total = total + lib.source_math.double(value);
             }
             total;
             """;

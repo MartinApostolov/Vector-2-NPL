@@ -1,0 +1,9 @@
+import lib.math;
+
+print(lib.math.sqrt(25));
+print(lib.math.abs(-10));
+print(lib.math.max(3, 7));
+print(lib.math.min(3, 7));
+print(lib.math.pow(2, 8));
+print(lib.math.pi);
+print(lib.math.e);
