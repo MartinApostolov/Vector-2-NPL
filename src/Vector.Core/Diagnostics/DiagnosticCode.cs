@@ -26,5 +26,6 @@ public enum DiagnosticCode
     InvalidListIndex,
     ListIndexOutOfRange,
     VectorLengthMismatch,
-    CyclicList
+    CyclicList,
+    ArgumentCountMismatch
 }

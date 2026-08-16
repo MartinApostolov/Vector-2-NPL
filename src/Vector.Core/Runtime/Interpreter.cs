@@ -1,5 +1,6 @@
 using Vector.Core.Diagnostics;
 using Vector.Core.Lexing;
+using Vector.Core.Runtime.Callable;
 using Vector.Core.Runtime.ControlFlow;
 using Vector.Core.Runtime.Values;
 using Vector.Core.Source;
@@ -46,6 +47,8 @@ public sealed class Interpreter
             VariableDeclaration declaration => ExecuteVariableDeclaration(declaration),
             BlockStatement block => ExecuteBlock(block),
             IfStatement conditional => ExecuteIf(conditional),
+            FunctionDeclaration function => ExecuteFunctionDeclaration(function),
+            ReturnStatement returnStatement => ExecuteReturn(returnStatement),
             WhileStatement loop => ExecuteWhile(loop),
             ForStatement loop => ExecuteFor(loop),
             BreakStatement breakStatement => throw new BreakSignal(breakStatement.Span),
@@ -53,6 +56,24 @@ public sealed class Interpreter
             _ => throw new InvalidOperationException(
                 $"Statement type '{statement.GetType().Name}' is not implemented by this runtime stage.")
         };
+    }
+
+    private VectorValue ExecuteFunctionDeclaration(FunctionDeclaration declaration)
+    {
+        // Capture the environment object itself. The binding is installed immediately
+        // afterward, which also makes the function's own name visible for recursion.
+        var function = new UserFunction(declaration, _environment);
+        _environment.Declare(declaration.Name, function, declaration.Span);
+        return NothingValue.Instance;
+    }
+
+    private VectorValue ExecuteReturn(ReturnStatement statement)
+    {
+        var value = statement.Expression is null
+            ? (VectorValue)NothingValue.Instance
+            : Evaluate(statement.Expression);
+
+        throw new ReturnSignal(value, statement.Span);
     }
 
     private VectorValue ExecuteVariableDeclaration(VariableDeclaration declaration)
@@ -186,6 +207,53 @@ public sealed class Interpreter
         }
     }
 
+    internal VectorValue InvokeUserFunction(UserFunction function, IReadOnlyList<VectorValue> arguments)
+    {
+        ArgumentNullException.ThrowIfNull(function);
+        ArgumentNullException.ThrowIfNull(arguments);
+
+        if (arguments.Count != function.Arity)
+        {
+            throw new ArgumentException(
+                $"Function '{function.Name}' requires {function.Arity} arguments, but received {arguments.Count}.",
+                nameof(arguments));
+        }
+
+        var previous = _environment;
+        _environment = new Environment(function.Closure);
+
+        try
+        {
+            for (var i = 0; i < function.Declaration.Parameters.Count; i++)
+            {
+                _environment.Declare(
+                    function.Declaration.Parameters[i],
+                    arguments[i],
+                    function.Declaration.Span);
+            }
+
+            try
+            {
+                // The function invocation environment is also the function body's lexical
+                // scope, so parameters and top-level body declarations share one scope.
+                foreach (var statement in function.Declaration.Body.Statements)
+                {
+                    Execute(statement);
+                }
+            }
+            catch (ReturnSignal signal)
+            {
+                return signal.Value;
+            }
+
+            return NothingValue.Instance;
+        }
+        finally
+        {
+            _environment = previous;
+        }
+    }
+
     public VectorValue Evaluate(ExpressionSyntax expression)
     {
         ArgumentNullException.ThrowIfNull(expression);
@@ -200,9 +268,39 @@ public sealed class Interpreter
             AssignmentExpression assignment => EvaluateAssignment(assignment),
             ListExpression list => EvaluateList(list),
             IndexExpression index => EvaluateIndex(index),
+            CallExpression call => EvaluateCall(call),
             _ => throw new InvalidOperationException(
                 $"Expression type '{expression.GetType().Name}' is not implemented by this runtime stage.")
         };
+    }
+
+    private VectorValue EvaluateCall(CallExpression expression)
+    {
+        // Evaluate the callee first. Arity can then be validated before evaluating any
+        // arguments, so an invalid call cannot partially perform argument side effects.
+        var callee = Evaluate(expression.Callee);
+        if (callee is not IVectorCallable callable)
+        {
+            throw CreateTypeError(
+                $"Only functions can be called, but received {callee.TypeName}.",
+                expression.Callee.Span);
+        }
+
+        if (expression.Arguments.Count != callable.Arity)
+        {
+            throw new RuntimeError(
+                DiagnosticCode.ArgumentCountMismatch,
+                $"Function expects {callable.Arity} arguments, but received {expression.Arguments.Count}.",
+                expression.Span);
+        }
+
+        var arguments = new VectorValue[expression.Arguments.Count];
+        for (var i = 0; i < expression.Arguments.Count; i++)
+        {
+            arguments[i] = Evaluate(expression.Arguments[i]);
+        }
+
+        return callable.Call(this, arguments);
     }
 
     private static VectorValue EvaluateLiteral(LiteralExpression expression) =>
