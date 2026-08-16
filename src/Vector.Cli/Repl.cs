@@ -110,7 +110,7 @@ public sealed class Repl
 
         try
         {
-            var value = _interpreter.Execute(parseResult.Root);
+            var value = _interpreter.Execute(parseResult.Root, ReplSourceName, source);
             if (parseResult.Root.Statements.LastOrDefault() is ExpressionStatement
                 && value is not NothingValue)
             {
@@ -124,7 +124,9 @@ public sealed class Repl
                     runtimeError.Code,
                     runtimeError.Message,
                     DiagnosticSeverity.Error,
-                    runtimeError.Span),
+                    runtimeError.Span,
+                    runtimeError.SourceName,
+                    runtimeError.SourceText),
                 source);
         }
         catch (ModuleLoadException moduleError)
@@ -137,9 +139,6 @@ public sealed class Repl
     {
         if (error.Kind == ModuleLoadErrorKind.InvalidSyntax && error.Diagnostics.Count > 0)
         {
-            // Source identity for diagnostics originating inside imported modules is the
-            // known Commit 29 diagnostic-plumbing fix. Until then, keep REPL behavior
-            // consistent with file execution rather than inventing a separate model here.
             WriteDiagnostics(error.Diagnostics, submissionSource);
             return;
         }

@@ -18,6 +18,9 @@ public static class CliDiagnosticFormatter
 
         ArgumentNullException.ThrowIfNull(source);
 
+        filePath = diagnostic.SourceName ?? filePath;
+        source = diagnostic.SourceText ?? source;
+
         var severity = diagnostic.Severity.ToString().ToLowerInvariant();
         var header = $"{filePath}:{diagnostic.Span.Start.Line}:{diagnostic.Span.Start.Column}: " +
                      $"{severity} {diagnostic.Code}: {diagnostic.Message}";

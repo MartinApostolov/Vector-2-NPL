@@ -41,6 +41,8 @@ public sealed class Interpreter
     private readonly ModuleLoader? _moduleLoader;
     private readonly HashSet<ModuleId> _importedModules = new();
     private Environment _environment;
+    private string? _sourceName;
+    private string? _sourceText;
 
     public Environment CurrentEnvironment => _environment;
 
@@ -49,7 +51,36 @@ public sealed class Interpreter
     public VectorValue Execute(CompilationUnit compilationUnit)
     {
         ArgumentNullException.ThrowIfNull(compilationUnit);
+        return ExecuteCompilationUnit(compilationUnit);
+    }
 
+    public VectorValue Execute(CompilationUnit compilationUnit, string? sourceName, string sourceText)
+    {
+        ArgumentNullException.ThrowIfNull(compilationUnit);
+        ArgumentNullException.ThrowIfNull(sourceText);
+
+        var previousSourceName = _sourceName;
+        var previousSourceText = _sourceText;
+        _sourceName = sourceName;
+        _sourceText = sourceText;
+
+        try
+        {
+            return ExecuteCompilationUnit(compilationUnit);
+        }
+        catch (RuntimeError error)
+        {
+            throw error.WithSource(_sourceName, _sourceText);
+        }
+        finally
+        {
+            _sourceName = previousSourceName;
+            _sourceText = previousSourceText;
+        }
+    }
+
+    private VectorValue ExecuteCompilationUnit(CompilationUnit compilationUnit)
+    {
         var result = (VectorValue)NothingValue.Instance;
         foreach (var statement in compilationUnit.Statements)
         {
@@ -99,7 +130,11 @@ public sealed class Interpreter
     {
         // Capture the environment object itself. The binding is installed immediately
         // afterward, which also makes the function's own name visible for recursion.
-        var function = new UserFunction(declaration, _environment);
+        var function = new UserFunction(
+            declaration,
+            _environment,
+            _sourceName,
+            _sourceText);
         _environment.Declare(declaration.Name, function, declaration.Span);
         return NothingValue.Instance;
     }
@@ -256,8 +291,16 @@ public sealed class Interpreter
                 nameof(arguments));
         }
 
-        var previous = _environment;
+        var previousEnvironment = _environment;
+        var previousSourceName = _sourceName;
+        var previousSourceText = _sourceText;
         _environment = new Environment(function.Closure);
+
+        if (function.SourceText is not null)
+        {
+            _sourceName = function.SourceName;
+            _sourceText = function.SourceText;
+        }
 
         try
         {
@@ -285,9 +328,20 @@ public sealed class Interpreter
 
             return NothingValue.Instance;
         }
+        catch (RuntimeError error)
+        {
+            if (_sourceText is not null)
+            {
+                throw error.WithSource(_sourceName, _sourceText);
+            }
+
+            throw;
+        }
         finally
         {
-            _environment = previous;
+            _environment = previousEnvironment;
+            _sourceName = previousSourceName;
+            _sourceText = previousSourceText;
         }
     }
 

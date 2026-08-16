@@ -14,6 +14,7 @@ public sealed class LoadedModule
     public LoadedModule(
         ModuleId id,
         string filePath,
+        string source,
         CompilationUnit syntax,
         RuntimeEnvironment environment,
         IEnumerable<ModuleId> imports)
@@ -24,7 +25,9 @@ public sealed class LoadedModule
             throw new ArgumentException("A module file path is required.", nameof(filePath));
         }
 
+        ArgumentNullException.ThrowIfNull(source);
         FilePath = Path.GetFullPath(filePath);
+        Source = source;
         Syntax = syntax ?? throw new ArgumentNullException(nameof(syntax));
         Environment = environment ?? throw new ArgumentNullException(nameof(environment));
         ArgumentNullException.ThrowIfNull(imports);
@@ -36,6 +39,8 @@ public sealed class LoadedModule
     public string QualifiedNamespace => Id.QualifiedName;
 
     public string FilePath { get; }
+
+    public string Source { get; }
 
     public CompilationUnit Syntax { get; }
 

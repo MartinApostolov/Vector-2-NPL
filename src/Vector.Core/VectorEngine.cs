@@ -49,7 +49,7 @@ public sealed class VectorEngine
 
         try
         {
-            var result = interpreter.Execute(parseResult.Root);
+            var result = interpreter.Execute(parseResult.Root, sourceName: null, sourceText: source);
             return new ExecutionResult(result, parseResult.Diagnostics, output);
         }
         catch (RuntimeError error)
@@ -58,7 +58,9 @@ public sealed class VectorEngine
                 error.Code,
                 error.Message,
                 DiagnosticSeverity.Error,
-                error.Span);
+                error.Span,
+                error.SourceName,
+                error.SourceText);
             return new ExecutionResult(null, parseResult.Diagnostics.Append(diagnostic), output);
         }
         catch (ModuleLoadException error)

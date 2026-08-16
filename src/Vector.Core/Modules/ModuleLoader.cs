@@ -80,12 +80,15 @@ public sealed class ModuleLoader
             var parseResult = new Parser(new SourceText(source)).ParseCompilationUnit();
             if (parseResult.HasErrors)
             {
+                var diagnostics = parseResult.Diagnostics
+                    .Select(diagnostic => diagnostic.WithSource(filePath, source))
+                    .ToArray();
                 throw new ModuleLoadException(
                     ModuleLoadErrorKind.InvalidSyntax,
                     moduleId,
                     filePath,
                     $"Module '{moduleId}' contains syntax errors.",
-                    parseResult.Diagnostics);
+                    diagnostics);
             }
 
             var imports = parseResult.Root.Statements
@@ -101,6 +104,7 @@ public sealed class ModuleLoader
             var loaded = new LoadedModule(
                 moduleId,
                 filePath,
+                source,
                 parseResult.Root,
                 new RuntimeEnvironment(),
                 imports);
@@ -169,8 +173,12 @@ public sealed class ModuleLoader
         try
         {
             var interpreter = new Interpreter(module.Environment, host, this);
-            interpreter.Execute(module.Syntax);
+            interpreter.Execute(module.Syntax, module.FilePath, module.Source);
             _initialized.Add(module.Id);
+        }
+        catch (RuntimeError error)
+        {
+            throw error.WithSource(module.FilePath, module.Source);
         }
         finally
         {
