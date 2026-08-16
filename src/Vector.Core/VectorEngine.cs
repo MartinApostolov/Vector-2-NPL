@@ -1,6 +1,7 @@
 using Vector.Core.Diagnostics;
 using Vector.Core.Execution;
 using Vector.Core.Modules;
+using Vector.Core.Modules.Native;
 using Vector.Core.Parsing;
 using Vector.Core.Runtime;
 using Vector.Core.Runtime.Host;
@@ -14,6 +15,13 @@ namespace Vector.Core;
 /// </summary>
 public sealed class VectorEngine
 {
+    public VectorEngine(NativeModuleRegistry? nativeModules = null)
+    {
+        NativeModules = nativeModules ?? new NativeModuleRegistry();
+    }
+
+    public NativeModuleRegistry NativeModules { get; }
+
     /// <summary>
     /// Parses and executes one Vector source submission.
     /// </summary>
@@ -44,7 +52,7 @@ public sealed class VectorEngine
         var root = string.IsNullOrWhiteSpace(programRoot)
             ? Directory.GetCurrentDirectory()
             : Path.GetFullPath(programRoot);
-        var moduleLoader = new ModuleLoader(new ModuleResolver(root));
+        var moduleLoader = new ModuleLoader(new ModuleResolver(root), NativeModules);
         var interpreter = new Interpreter(host: executionHost, moduleLoader: moduleLoader);
 
         try
@@ -82,6 +90,8 @@ public sealed class VectorEngine
             ModuleLoadErrorKind.ModuleNotFound => DiagnosticCode.ModuleNotFound,
             ModuleLoadErrorKind.CircularImport => DiagnosticCode.CircularImport,
             ModuleLoadErrorKind.IoFailure => DiagnosticCode.ModuleIoFailure,
+            ModuleLoadErrorKind.ModuleConflict => DiagnosticCode.ModuleConflict,
+            ModuleLoadErrorKind.NativeInitializationFailure => DiagnosticCode.NativeRuntimeFailure,
             _ => DiagnosticCode.Unspecified
         };
 

@@ -1,6 +1,7 @@
 using Vector.Core.Diagnostics;
 using Vector.Core.Lexing;
 using Vector.Core.Modules;
+using Vector.Core.Modules.Native;
 using Vector.Core.Parsing;
 using Vector.Core.Runtime;
 using Vector.Core.Runtime.Host;
@@ -28,7 +29,8 @@ public sealed class Repl
         TextReader? input = null,
         TextWriter? output = null,
         TextWriter? error = null,
-        string? programRoot = null)
+        string? programRoot = null,
+        NativeModuleRegistry? nativeModules = null)
     {
         _input = input ?? Console.In;
         _output = output ?? Console.Out;
@@ -37,7 +39,9 @@ public sealed class Repl
         var root = string.IsNullOrWhiteSpace(programRoot)
             ? Directory.GetCurrentDirectory()
             : Path.GetFullPath(programRoot);
-        var moduleLoader = new ModuleLoader(new ModuleResolver(root));
+        var moduleLoader = new ModuleLoader(
+            new ModuleResolver(root),
+            nativeModules ?? new NativeModuleRegistry());
         _interpreter = new Interpreter(
             host: new VectorHost(_output.WriteLine),
             moduleLoader: moduleLoader);
@@ -147,6 +151,8 @@ public sealed class Repl
             ModuleLoadErrorKind.ModuleNotFound => DiagnosticCode.ModuleNotFound,
             ModuleLoadErrorKind.CircularImport => DiagnosticCode.CircularImport,
             ModuleLoadErrorKind.IoFailure => DiagnosticCode.ModuleIoFailure,
+            ModuleLoadErrorKind.ModuleConflict => DiagnosticCode.ModuleConflict,
+            ModuleLoadErrorKind.NativeInitializationFailure => DiagnosticCode.NativeRuntimeFailure,
             _ => DiagnosticCode.Unspecified
         };
         var position = new SourcePosition(0, 1, 1);
