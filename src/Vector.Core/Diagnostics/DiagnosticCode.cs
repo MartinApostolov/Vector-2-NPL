@@ -27,5 +27,8 @@ public enum DiagnosticCode
     ListIndexOutOfRange,
     VectorLengthMismatch,
     CyclicList,
-    ArgumentCountMismatch
+    ArgumentCountMismatch,
+    ModuleNotFound,
+    CircularImport,
+    ModuleIoFailure
 }
