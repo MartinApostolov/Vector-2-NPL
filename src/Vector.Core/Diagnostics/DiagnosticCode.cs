@@ -20,5 +20,7 @@ public enum DiagnosticCode
     DuplicateParameter,
     InvalidImportPlacement,
     VariableAlreadyDeclared,
-    UndefinedVariable
+    UndefinedVariable,
+    RuntimeTypeError,
+    DivisionByZero
 }
