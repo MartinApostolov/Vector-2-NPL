@@ -31,5 +31,6 @@ public enum DiagnosticCode
     NativeRuntimeFailure,
     ModuleNotFound,
     CircularImport,
-    ModuleIoFailure
+    ModuleIoFailure,
+    ModuleConflict
 }

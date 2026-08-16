@@ -1,6 +1,8 @@
 using System.Text;
 using Vector.Core.Diagnostics;
 using Vector.Core.Parsing;
+using Vector.Core.Modules.Native;
+using Vector.Core.Runtime.Native;
 using Vector.Core.Runtime;
 using Vector.Core.Runtime.Host;
 using RuntimeEnvironment = Vector.Core.Runtime.Environment;
@@ -22,11 +24,19 @@ public sealed class ModuleLoader
     private readonly HashSet<ModuleId> _initializing = new();
 
     public ModuleLoader(ModuleResolver resolver)
+        : this(resolver, new NativeModuleRegistry())
+    {
+    }
+
+    public ModuleLoader(ModuleResolver resolver, NativeModuleRegistry nativeModules)
     {
         Resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
+        NativeModules = nativeModules ?? throw new ArgumentNullException(nameof(nativeModules));
     }
 
     public ModuleResolver Resolver { get; }
+
+    public NativeModuleRegistry NativeModules { get; }
 
     public IReadOnlyCollection<LoadedModule> LoadedModules => _loaded.Values;
 
@@ -53,13 +63,35 @@ public sealed class ModuleLoader
         try
         {
             var filePath = Resolver.Resolve(moduleId);
-            if (!File.Exists(filePath))
+            var hasSourceModule = File.Exists(filePath);
+            var hasNativeModule = NativeModules.TryGet(moduleId, out var nativeDefinition);
+
+            if (hasSourceModule && hasNativeModule)
+            {
+                throw new ModuleLoadException(
+                    ModuleLoadErrorKind.ModuleConflict,
+                    moduleId,
+                    filePath,
+                    $"Module '{moduleId}' is provided by both a local Vector source file and a registered native module.");
+            }
+
+            if (hasNativeModule)
+            {
+                var nativeModule = new LoadedModule(
+                    nativeDefinition!,
+                    new RuntimeEnvironment());
+
+                _loaded.Add(moduleId, nativeModule);
+                return nativeModule;
+            }
+
+            if (!hasSourceModule)
             {
                 throw new ModuleLoadException(
                     ModuleLoadErrorKind.ModuleNotFound,
                     moduleId,
                     filePath,
-                    $"Module '{moduleId}' was not found at '{filePath}'.");
+                    $"Module '{moduleId}' was not found at '{filePath}' and no native module is registered with that name.");
             }
 
             string source;
@@ -162,10 +194,6 @@ public sealed class ModuleLoader
             return;
         }
 
-        var sourceData = module.SourceData
-            ?? throw new InvalidOperationException(
-                $"Module '{module.Id}' is not backed by Vector source and cannot be initialized by the source-module path.");
-
         if (!_initializing.Add(module.Id))
         {
             throw new InvalidOperationException(
@@ -174,17 +202,67 @@ public sealed class ModuleLoader
 
         try
         {
+            if (module.Kind == ModuleKind.Native)
+            {
+                InitializeNativeModule(module);
+            }
+            else
+            {
+                InitializeSourceModule(module, host);
+            }
+
+            _initialized.Add(module.Id);
+        }
+        finally
+        {
+            _initializing.Remove(module.Id);
+        }
+    }
+
+    private void InitializeSourceModule(LoadedModule module, IVectorHost host)
+    {
+        var sourceData = module.SourceData
+            ?? throw new InvalidOperationException(
+                $"Source module '{module.Id}' does not contain source metadata.");
+
+        try
+        {
             var interpreter = new Interpreter(module.Environment, host, this);
             interpreter.Execute(sourceData.Syntax, sourceData.FilePath, sourceData.Source);
-            _initialized.Add(module.Id);
         }
         catch (RuntimeError error)
         {
             throw error.WithSource(sourceData.FilePath, sourceData.Source);
         }
-        finally
+    }
+
+    private void InitializeNativeModule(LoadedModule module)
+    {
+        var definition = module.NativeDefinition
+            ?? throw new InvalidOperationException(
+                $"Native module '{module.Id}' does not contain a native definition.");
+
+        try
         {
-            _initializing.Remove(module.Id);
+            definition.Initialize(module.Environment);
+        }
+        catch (NativeRuntimeException error)
+        {
+            throw new ModuleLoadException(
+                ModuleLoadErrorKind.NativeInitializationFailure,
+                module.Id,
+                Resolver.Resolve(module.Id),
+                $"Native module '{module.Id}' failed to initialize: {error.Message}",
+                innerException: error);
+        }
+        catch (Exception error)
+        {
+            throw new ModuleLoadException(
+                ModuleLoadErrorKind.NativeInitializationFailure,
+                module.Id,
+                Resolver.Resolve(module.Id),
+                $"Native module '{module.Id}' failed to initialize.",
+                innerException: error);
         }
     }
 
@@ -220,7 +298,9 @@ public enum ModuleLoadErrorKind
     ModuleNotFound,
     InvalidSyntax,
     CircularImport,
-    IoFailure
+    IoFailure,
+    ModuleConflict,
+    NativeInitializationFailure
 }
 
 /// <summary>
