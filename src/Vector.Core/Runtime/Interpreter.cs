@@ -4,12 +4,12 @@ using Vector.Core.Runtime.Values;
 using Vector.Core.Source;
 using Vector.Core.Syntax;
 using Vector.Core.Syntax.Expressions;
+using Vector.Core.Syntax.Statements;
 
 namespace Vector.Core.Runtime;
 
 /// <summary>
-/// Evaluates Vector expressions against a lexical environment.
-/// Statement execution is added in later runtime commits.
+/// Evaluates Vector expressions and executes statements against a lexical environment.
 /// </summary>
 public sealed class Interpreter
 {
@@ -21,6 +21,81 @@ public sealed class Interpreter
     private Environment _environment;
 
     public Environment CurrentEnvironment => _environment;
+
+    public VectorValue Execute(CompilationUnit compilationUnit)
+    {
+        ArgumentNullException.ThrowIfNull(compilationUnit);
+
+        var result = (VectorValue)NothingValue.Instance;
+        foreach (var statement in compilationUnit.Statements)
+        {
+            result = Execute(statement);
+        }
+
+        return result;
+    }
+
+    public VectorValue Execute(StatementSyntax statement)
+    {
+        ArgumentNullException.ThrowIfNull(statement);
+
+        return statement switch
+        {
+            ExpressionStatement expressionStatement => Evaluate(expressionStatement.Expression),
+            VariableDeclaration declaration => ExecuteVariableDeclaration(declaration),
+            BlockStatement block => ExecuteBlock(block),
+            IfStatement conditional => ExecuteIf(conditional),
+            _ => throw new InvalidOperationException(
+                $"Statement type '{statement.GetType().Name}' is not implemented by this runtime stage.")
+        };
+    }
+
+    private VectorValue ExecuteVariableDeclaration(VariableDeclaration declaration)
+    {
+        // The initializer is evaluated before the new binding is introduced.
+        var value = Evaluate(declaration.Initializer);
+        _environment.Declare(declaration.Name, value, declaration.Span);
+        return NothingValue.Instance;
+    }
+
+    private VectorValue ExecuteBlock(BlockStatement block)
+    {
+        var previous = _environment;
+        _environment = new Environment(previous);
+
+        try
+        {
+            foreach (var statement in block.Statements)
+            {
+                Execute(statement);
+            }
+
+            return NothingValue.Instance;
+        }
+        finally
+        {
+            _environment = previous;
+        }
+    }
+
+    private VectorValue ExecuteIf(IfStatement conditional)
+    {
+        var condition = RequireBoolean(
+            Evaluate(conditional.Condition),
+            conditional.Condition.Span,
+            "An 'if' condition must be a boolean");
+
+        if (condition.Value)
+        {
+            ExecuteBlock(conditional.ThenBranch);
+        }
+        else if (conditional.ElseBranch is not null)
+        {
+            Execute(conditional.ElseBranch);
+        }
+
+        return NothingValue.Instance;
+    }
 
     public VectorValue Evaluate(ExpressionSyntax expression)
     {
