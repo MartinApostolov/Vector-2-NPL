@@ -103,9 +103,7 @@ public sealed class ModuleLoader
 
             var loaded = new LoadedModule(
                 moduleId,
-                filePath,
-                source,
-                parseResult.Root,
+                new SourceModuleData(filePath, source, parseResult.Root),
                 new RuntimeEnvironment(),
                 imports);
 
@@ -164,6 +162,10 @@ public sealed class ModuleLoader
             return;
         }
 
+        var sourceData = module.SourceData
+            ?? throw new InvalidOperationException(
+                $"Module '{module.Id}' is not backed by Vector source and cannot be initialized by the source-module path.");
+
         if (!_initializing.Add(module.Id))
         {
             throw new InvalidOperationException(
@@ -173,12 +175,12 @@ public sealed class ModuleLoader
         try
         {
             var interpreter = new Interpreter(module.Environment, host, this);
-            interpreter.Execute(module.Syntax, module.FilePath, module.Source);
+            interpreter.Execute(sourceData.Syntax, sourceData.FilePath, sourceData.Source);
             _initialized.Add(module.Id);
         }
         catch (RuntimeError error)
         {
-            throw error.WithSource(module.FilePath, module.Source);
+            throw error.WithSource(sourceData.FilePath, sourceData.Source);
         }
         finally
         {

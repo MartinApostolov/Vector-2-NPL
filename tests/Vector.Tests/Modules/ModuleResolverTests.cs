@@ -98,7 +98,9 @@ public sealed class ModuleResolverTests
 
         Assert.Equal("lib.geometry", module.QualifiedNamespace);
         Assert.Equal(Id("lib.geometry"), module.Id);
-        Assert.Single(module.Syntax.Statements);
+        Assert.Equal(ModuleKind.Source, module.Kind);
+        Assert.NotNull(module.SourceData);
+        Assert.Single(module.Syntax!.Statements);
         Assert.Equal(Path.Combine(program.Root, "lib", "geometry.vec"), module.FilePath);
     }
 
@@ -132,7 +134,7 @@ public sealed class ModuleResolverTests
 
         Assert.Same(first, second);
         Assert.Single(loader.LoadedModules);
-        Assert.Single(second.Syntax.Statements);
+        Assert.Single(second.Syntax!.Statements);
     }
 
     [Fact]
