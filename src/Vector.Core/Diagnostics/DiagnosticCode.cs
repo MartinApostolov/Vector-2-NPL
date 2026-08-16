@@ -28,6 +28,7 @@ public enum DiagnosticCode
     VectorLengthMismatch,
     CyclicList,
     ArgumentCountMismatch,
+    NativeRuntimeFailure,
     ModuleNotFound,
     CircularImport,
     ModuleIoFailure

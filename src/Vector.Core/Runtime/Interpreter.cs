@@ -4,6 +4,7 @@ using Vector.Core.Modules;
 using Vector.Core.Runtime.Builtins;
 using Vector.Core.Runtime.Callable;
 using Vector.Core.Runtime.Host;
+using Vector.Core.Runtime.Native;
 using Vector.Core.Runtime.ControlFlow;
 using Vector.Core.Runtime.Values;
 using Vector.Core.Source;
@@ -477,6 +478,10 @@ public sealed class Interpreter
             return callable.Call(this, arguments);
         }
         catch (BuiltinRuntimeException error)
+        {
+            throw new RuntimeError(error.Code, error.Message, expression.Span);
+        }
+        catch (NativeRuntimeException error)
         {
             throw new RuntimeError(error.Code, error.Message, expression.Span);
         }
