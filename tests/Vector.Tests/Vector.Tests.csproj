@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\src\Vector.Core\Vector.Core.csproj" />
     <ProjectReference Include="..\..\src\Vector.Plugins\Vector.Plugins.csproj" />
     <ProjectReference Include="..\..\src\Vector.Cli\Vector.Cli.csproj" />
+    <ProjectReference Include="..\..\examples\plugins\Vector.ExamplePlugin\Vector.ExamplePlugin.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\Vector.TestPlugin\Vector.TestPlugin.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\Vector.TestPlugin.Dependency\Vector.TestPlugin.Dependency.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\Vector.TestPlugin.Second\Vector.TestPlugin.Second.csproj" ReferenceOutputAssembly="false" />

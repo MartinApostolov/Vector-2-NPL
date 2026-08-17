@@ -32,6 +32,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.TestPlugin.Registrat
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.TestPlugin.StandardConflict", "tests\Vector.TestPlugin.StandardConflict\Vector.TestPlugin.StandardConflict.csproj", "{B6DA5292-3556-4EEF-99AA-10D5340DC4F1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.ExamplePlugin", "examples\plugins\Vector.ExamplePlugin\Vector.ExamplePlugin.csproj", "{8C5BD1A1-F3C2-4EBA-A621-11D8CB8E7A44}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -98,5 +100,9 @@ Global
 		{B6DA5292-3556-4EEF-99AA-10D5340DC4F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B6DA5292-3556-4EEF-99AA-10D5340DC4F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B6DA5292-3556-4EEF-99AA-10D5340DC4F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8C5BD1A1-F3C2-4EBA-A621-11D8CB8E7A44}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8C5BD1A1-F3C2-4EBA-A621-11D8CB8E7A44}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8C5BD1A1-F3C2-4EBA-A621-11D8CB8E7A44}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8C5BD1A1-F3C2-4EBA-A621-11D8CB8E7A44}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
