@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.Core", "src\Vector.C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.Cli", "src\Vector.Cli\Vector.Cli.csproj", "{9B99A725-7F02-4D07-8D7F-3F1A17A95656}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.Plugins", "src\Vector.Plugins\Vector.Plugins.csproj", "{56FA58B6-57A7-4B38-AE6D-A8A6F86681B1}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.Tests", "tests\Vector.Tests\Vector.Tests.csproj", "{14373CC9-5DB0-45AE-828E-5D7CC2275701}"
 EndProject
 Global
@@ -26,5 +28,9 @@ Global
 		{14373CC9-5DB0-45AE-828E-5D7CC2275701}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{14373CC9-5DB0-45AE-828E-5D7CC2275701}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{14373CC9-5DB0-45AE-828E-5D7CC2275701}.Release|Any CPU.Build.0 = Release|Any CPU
+		{56FA58B6-57A7-4B38-AE6D-A8A6F86681B1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{56FA58B6-57A7-4B38-AE6D-A8A6F86681B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{56FA58B6-57A7-4B38-AE6D-A8A6F86681B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{56FA58B6-57A7-4B38-AE6D-A8A6F86681B1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
