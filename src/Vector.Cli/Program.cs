@@ -1,6 +1,7 @@
 using System.Text;
-using Vector.Core;
 using Vector.Core.Runtime.Host;
+using Vector.Plugins;
+using Vector.Plugins.Loading;
 
 namespace Vector.Cli;
 
@@ -9,35 +10,80 @@ internal static class Program
     private const int SuccessExitCode = 0;
     private const int LanguageFailureExitCode = 1;
     private const int CommandLineFailureExitCode = 2;
+    private const string Usage = "Usage: vector [--plugin plugin.dll]... [file.vec]";
 
-    public static int Main(string[] args)
+    public static int Main(string[] args) =>
+        Run(args, Console.In, Console.Out, Console.Error);
+
+    internal static int Run(
+        IReadOnlyList<string> args,
+        TextReader input,
+        TextWriter output,
+        TextWriter error)
     {
-        if (args.Length == 0)
+        ArgumentNullException.ThrowIfNull(args);
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(output);
+        ArgumentNullException.ThrowIfNull(error);
+
+        if (!CliOptionParser.TryParse(args, out var options, out var parseError))
         {
-            return new Repl().Run();
+            error.WriteLine($"vector: {parseError}");
+            error.WriteLine(Usage);
+            return CommandLineFailureExitCode;
         }
 
-        if (args.Length != 1)
+        var runtime = VectorPluginRuntime.CreateDefault();
+        foreach (var pluginPath in options.PluginPaths)
         {
-            Console.Error.WriteLine("Usage: vector [file.vec]");
-            return CommandLineFailureExitCode;
+            try
+            {
+                runtime.Plugins.LoadFromPath(pluginPath);
+            }
+            catch (VectorPluginLoadException pluginError)
+            {
+                error.WriteLine(
+                    $"vector: plugin '{pluginPath}' could not be loaded: {pluginError.Message}");
+                return CommandLineFailureExitCode;
+            }
+            catch (VectorPluginException pluginError)
+            {
+                error.WriteLine(
+                    $"vector: plugin '{pluginPath}' could not be registered: {pluginError.Message}");
+                return CommandLineFailureExitCode;
+            }
+            catch (Exception pluginError)
+            {
+                error.WriteLine(
+                    $"vector: plugin '{pluginPath}' failed during setup: {pluginError.Message}");
+                return CommandLineFailureExitCode;
+            }
+        }
+
+        if (options.SourceFile is null)
+        {
+            return new Repl(
+                input,
+                output,
+                error,
+                nativeModules: runtime.NativeModules).Run();
         }
 
         string filePath;
         try
         {
-            filePath = Path.GetFullPath(args[0]);
+            filePath = Path.GetFullPath(options.SourceFile);
         }
-        catch (Exception error) when (
-            error is ArgumentException or NotSupportedException or PathTooLongException)
+        catch (Exception pathError) when (
+            pathError is ArgumentException or NotSupportedException or PathTooLongException)
         {
-            Console.Error.WriteLine($"vector: cannot resolve source path: {error.Message}");
+            error.WriteLine($"vector: cannot resolve source path: {pathError.Message}");
             return CommandLineFailureExitCode;
         }
 
         if (!string.Equals(Path.GetExtension(filePath), ".vec", StringComparison.OrdinalIgnoreCase))
         {
-            Console.Error.WriteLine("vector: source file must use the .vec extension.");
+            error.WriteLine("vector: source file must use the .vec extension.");
             return CommandLineFailureExitCode;
         }
 
@@ -49,16 +95,16 @@ internal static class Program
                 throwOnInvalidBytes: true);
             source = File.ReadAllText(filePath, utf8);
         }
-        catch (Exception error) when (
-            error is IOException or UnauthorizedAccessException or DecoderFallbackException)
+        catch (Exception readError) when (
+            readError is IOException or UnauthorizedAccessException or DecoderFallbackException)
         {
-            Console.Error.WriteLine($"vector: cannot read '{filePath}': {error.Message}");
+            error.WriteLine($"vector: cannot read '{filePath}': {readError.Message}");
             return CommandLineFailureExitCode;
         }
 
         var programRoot = Path.GetDirectoryName(filePath) ?? Directory.GetCurrentDirectory();
-        var host = new VectorInputHost(Console.WriteLine, Console.ReadLine);
-        var result = new VectorEngine().Execute(source, programRoot, host);
+        var host = new VectorInputHost(output.WriteLine, input.ReadLine);
+        var result = runtime.Execute(source, programRoot, host);
 
         if (result.Success)
         {
@@ -67,7 +113,7 @@ internal static class Program
 
         foreach (var diagnostic in result.Diagnostics)
         {
-            Console.Error.WriteLine(CliDiagnosticFormatter.Format(diagnostic, filePath, source));
+            error.WriteLine(CliDiagnosticFormatter.Format(diagnostic, filePath, source));
         }
 
         return LanguageFailureExitCode;

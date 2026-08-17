@@ -1,15 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Vector.Core\Vector.Core.csproj" />
-    <ProjectReference Include="..\Vector.Plugins\Vector.Plugins.csproj" />
+    <ProjectReference Include="..\..\src\Vector.Core\Vector.Core.csproj" />
+    <ProjectReference Include="..\..\src\Vector.Plugins\Vector.Plugins.csproj" />
   </ItemGroup>
 
 </Project>
