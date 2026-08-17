@@ -252,6 +252,7 @@ public sealed class BuiltinTests
     [InlineData("concat", 2)]
     [InlineData("text", 1)]
     [InlineData("number", 1)]
+    [InlineData("type", 1)]
     [InlineData("range", 2)]
     public void EssentialBuiltinsAreAvailableGlobally(string name, int arity)
     {
@@ -369,6 +370,34 @@ public sealed class BuiltinTests
             Execute("function answer() { return 42; } text(answer);", new List<string>()));
     }
 
+    [Theory]
+    [InlineData("type(1);", "number")]
+    [InlineData("type(\"hello\");", "text")]
+    [InlineData("type(true);", "boolean")]
+    [InlineData("type([1, 2]);", "list")]
+    [InlineData("type([[1, 2], [3, 4]]);", "list")]
+    [InlineData("type(nothing);", "nothing")]
+    public void TypeReturnsPublicRuntimeTypeName(string source, string expected)
+    {
+        Assert.Equal(new TextValue(expected), Execute(source, new List<string>()));
+    }
+
+    [Fact]
+    public void TypeReportsFunctionValuesAsFunction()
+    {
+        Assert.Equal(
+            new TextValue("function"),
+            Execute("function answer() { return 42; } type(answer);", new List<string>()));
+    }
+
+    [Fact]
+    public void LexicalBindingCanShadowTypeBuiltin()
+    {
+        var result = Execute("let type = 17; type;", new List<string>());
+
+        Assert.Equal(new NumberValue(17), result);
+    }
+
     [Fact]
     public void NumberReturnsExistingNumberValue()
     {
@@ -467,6 +496,8 @@ public sealed class BuiltinTests
     [InlineData("concat([]);")]
     [InlineData("text();")]
     [InlineData("number();")]
+    [InlineData("type();")]
+    [InlineData("type(1, 2);")]
     [InlineData("range(1);")]
     [InlineData("range(1, 2, 3);")]
     public void EssentialBuiltinsUseStrictArity(string source)

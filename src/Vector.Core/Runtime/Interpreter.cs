@@ -34,6 +34,7 @@ public sealed class Interpreter
             ["concat"] = new ConcatBuiltin(),
             ["text"] = new TextBuiltin(),
             ["number"] = new NumberBuiltin(),
+            ["type"] = new TypeBuiltin(),
             ["range"] = new RangeBuiltin()
         };
     }
