@@ -23,11 +23,11 @@ Vector source -> Lexer -> Parser -> AST -> Interpreter -> Result
 - named functions, recursion, closures, and `return`
 - local multi-file modules with qualified access such as `lib.geometry.move(...)`
 - explicitly registered C#/.NET-backed modules using the same qualified `import` model
-- the native standard-library module `lib.math`
-- built-ins: `print`, `length`, `concat`, `text`, `number`, and `range`
+- native standard-library modules: `lib.math`, `lib.collections`, `lib.io`, `lib.vector`, and `lib.matrix`
+- built-ins: `print`, `length`, `concat`, `text`, `number`, `type`, and `range`
 - structured lexer, parser, module, native-call, and runtime diagnostics with source locations
 - `.vec` command-line execution, a reusable `VectorEngine`, and an interactive REPL
-- automated tests and 11 focused example programs
+- automated tests and 14 focused example entry points/programs
 
 The formal language rules are in [docs/LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md).
 The academy/project boundaries and future directions are in
@@ -104,15 +104,17 @@ A multi-file example can be run the same way:
 dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- examples/10_modules/main.vec
 ```
 
-The first C#/.NET-backed standard-library example is also runnable through the same
-CLI path:
+The C#/.NET-backed standard-library examples are runnable through the same CLI path:
 
 ```powershell
 dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- examples/11_native_math.vec
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- examples/12_standard_library.vec
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- examples/13_vector_math.vec
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- examples/14_matrix_math.vec
 ```
 
-It imports `lib.math` with ordinary Vector module syntax; no separate library-loading
-command is required.
+They import standard modules with ordinary Vector module syntax; no separate
+library-loading command is required.
 
 On Windows, after building, the generated executable can also be run directly:
 
@@ -197,6 +199,16 @@ value + 5;
 ```
 
 Use `number(value)` or `text(value)` when an explicit conversion is wanted.
+Use `type(value)` to inspect the current runtime type:
+
+```vec
+print(type(20));        // number
+print(type("hello"));   // text
+print(type([1, 2, 3])); // list
+```
+
+`type` returns one of `number`, `text`, `boolean`, `list`, `function`, or `nothing`.
+Numeric lists, vectors, and matrix-shaped nested lists are still runtime type `list`.
 
 ### Conditions and loops
 
@@ -252,6 +264,19 @@ print(values[1]);
 Only lists whose current elements are all numbers participate in numeric-list
 vector operations. General list concatenation uses `concat(a, b)`.
 
+Additional vector mathematics is provided through `lib.vector`:
+
+```vec
+import lib.vector;
+
+print(lib.vector.dot([1, 2, 3], [4, 5, 6])); // 32
+print(lib.vector.magnitude([3, 4]));          // 5
+print(lib.vector.normalize([3, 4]));          // [0.6, 0.8]
+```
+
+Vectors remain ordinary numeric lists; `lib.vector` does not introduce a separate
+runtime vector type.
+
 ### Modules
 
 `examples/10_modules/main.vec` demonstrates local modules:
@@ -285,7 +310,13 @@ Vector reports an explicit module conflict instead of silently choosing one.
 Native modules are registered deliberately by the host; Vector does not scan arbitrary
 assemblies, reflect over installed .NET APIs, or load arbitrary DLLs as modules.
 
-## Native standard library: `lib.math`
+## Native standard library
+
+The default runtime registers the standard modules described below. They use the same
+qualified import/member syntax as local `.vec` modules, and importing a standard module
+does not flatten its members into global names.
+
+### `lib.math`
 
 `lib.math` is registered by the default `VectorEngine`, CLI, and REPL runtime:
 
@@ -304,6 +335,78 @@ results must be finite; `NaN` and infinities are rejected as structured Vector r
 errors. Importing `lib.math` does not create unqualified names such as `sqrt`, `max`,
 or `pi`.
 
+### `lib.collections`
+
+```vec
+import lib.collections;
+
+let values = [4, -2, 8, 3];
+
+print(lib.collections.sum(values)); // 13
+print(lib.collections.min(values)); // -2
+print(lib.collections.max(values)); // 8
+```
+
+These functions require a list containing only finite numbers and do not mutate the
+input list. `sum([])` returns `0`; `min([])` and `max([])` are invalid operations and
+produce structured Vector runtime errors. These aggregate `min`/`max` functions are
+separate from the two-argument scalar functions `lib.math.min(a, b)` and
+`lib.math.max(a, b)`.
+
+### `lib.io`
+
+```vec
+import lib.io;
+
+let line = lib.io.readLine();
+```
+
+`lib.io.readLine()` takes no arguments and reads one line from the configured host
+input stream. It preserves ordinary leading/trailing spaces and returns `nothing` at
+end-of-input. The CLI and REPL provide input-capable hosts. Embedders that call
+`VectorEngine` must provide an input-capable host to use `readLine`; otherwise the call
+fails with a structured Vector runtime diagnostic.
+
+### `lib.vector`
+
+```text
+lib.vector.dot(a, b)
+lib.vector.magnitude(v)
+lib.vector.normalize(v)
+```
+
+All arguments are ordinary finite numeric lists. `dot` requires equal lengths.
+`magnitude([])` is `0`. `normalize` returns a new list and rejects any zero-magnitude
+vector, including `[]`. Vectors remain runtime type `list`.
+
+### `lib.matrix`
+
+Matrices are represented as ordinary nested numeric lists:
+
+```vec
+let matrix = [
+    [1, 2],
+    [3, 4]
+];
+```
+
+A valid matrix is non-empty, every row is a non-empty list, all rows have the same
+length, and every cell is a finite number. The module provides:
+
+```text
+lib.matrix.shape(matrix)
+lib.matrix.transpose(matrix)
+lib.matrix.add(a, b)
+lib.matrix.multiply(a, b)
+```
+
+`shape` returns `[rows, columns]`. `transpose` returns a new matrix. `add` requires
+equal shapes. `multiply(a, b)` uses ordinary row-by-column matrix multiplication and
+requires the number of columns in `a` to equal the number of rows in `b`.
+
+Matrices remain nested `list` values. Vector does not define matrix `+` or `*`
+operators in this version; use the qualified `lib.matrix` functions instead.
+
 ## Core built-ins
 
 | Built-in | Behavior |
@@ -313,6 +416,7 @@ or `pi`.
 | `concat(a, b)` | Returns a new shallow list containing the elements of two lists |
 | `text(value)` | Explicitly converts a Vector value to its display text |
 | `number(value)` | Accepts a number or finite numeric text and returns a number |
+| `type(value)` | Returns the current runtime type name as text |
 | `range(start, end)` | Ascending whole-number list from `start` inclusive to `end` exclusive |
 
 `range(start, end)` returns `[]` when `start >= end`. Both bounds must be finite
@@ -333,6 +437,9 @@ The `examples/` directory provides a focused tour:
 9. [`09_scopes.vec`](examples/09_scopes.vec) — lexical scope and outer assignment
 10. [`10_modules/main.vec`](examples/10_modules/main.vec) — multiple local files
 11. [`11_native_math.vec`](examples/11_native_math.vec) — C#/.NET-backed `lib.math`
+12. [`12_standard_library.vec`](examples/12_standard_library.vec) — `type` and `lib.collections`
+13. [`13_vector_math.vec`](examples/13_vector_math.vec) — `lib.vector`
+14. [`14_matrix_math.vec`](examples/14_matrix_math.vec) — `lib.matrix`
 
 All example programs are also covered by automated execution tests.
 
@@ -365,12 +472,14 @@ docs/              project scope and formal language specification
 
 ## Future work
 
-The required tree-walking interpreter remains the reference implementation. The first
-post-MVP native-library foundation is now implemented: source and registered native
-modules share one qualified module model, and `lib.math` proves the C#/.NET boundary.
+The required tree-walking interpreter remains the reference implementation. The
+post-MVP native-library foundation and the planned Standard Library + Linear Algebra v1
+phase are implemented: source and registered native modules share one qualified module
+model, with `lib.math`, `lib.collections`, `lib.io`, `lib.vector`, and `lib.matrix`
+available in the default runtime.
 
-Planned later work includes broader standard-library functionality, completing the
-vector-focused functionality and adding matrices, controlled external C# library/plugin
-support, a custom bytecode compiler and VM, a Visual Studio Community extension, and
-eventually an inspectable natural-language translation layer. Arbitrary DLL loading,
-automatic reflection over .NET APIs, and package management are not implemented.
+The next major planned stretch goal is controlled external C# library/plugin support
+built on the proven native-module boundary. Later goals remain the custom bytecode
+compiler and VM, a Visual Studio Community extension, package/dependency management if
+useful, and eventually an inspectable natural-language translation layer. Arbitrary DLL
+loading and automatic reflection over .NET APIs are not implemented.

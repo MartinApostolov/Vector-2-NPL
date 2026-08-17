@@ -1,6 +1,6 @@
 # Vector Project Scope
 
-**Status:** Required interpreter MVP complete; post-MVP stretch goals and extensions are planned below.
+**Status:** Required interpreter MVP complete; native-library foundation and Standard Library + Linear Algebra v1 stretch phases complete; later extensions remain planned below.
 
 ## 1. Project Objective
 
@@ -79,7 +79,7 @@ The repository will include:
 - Lexer and parser tests
 - Interpreter and runtime tests
 - Tests for invalid syntax and runtime failures
-- Approximately 8–10 example `.vec` programs
+- A focused set of example `.vec` programs (currently 14 entry-point examples)
 - A written grammar and language specification
 - Build, run, and usage instructions
 
@@ -113,11 +113,12 @@ source file such as:
 lib/geometry.vec
 ```
 
-The next library-system step is to allow the same qualified Vector module model
-to be backed by explicitly registered C#/.NET code.
+This library-system foundation is now implemented: the same qualified Vector module
+model can be backed by either local Vector source or explicitly registered C#/.NET
+code.
 
-The goal is that Vector code should use a library through the same public Vector
-API regardless of whether the implementation is written in Vector or C#:
+Vector code uses a library through the same public Vector API regardless of whether
+the implementation is written in Vector or C#:
 
 ```vec
 import lib.math;
@@ -136,21 +137,23 @@ A C#-backed Vector module may:
   raw host exceptions;
 - remain usable by the tree-walking interpreter and later execution backends.
 
-The initial native-library bridge should use explicit registration and a
-deliberate public API. Arbitrary reflection over any installed .NET assembly,
-unrestricted access to all .NET APIs, and automatic loading of arbitrary DLLs
-are not part of this first step.
+The initial native-library bridge uses explicit registration and a deliberate
+public API. Arbitrary reflection over any installed .NET assembly, unrestricted
+access to all .NET APIs, and automatic loading of arbitrary DLLs are not part of
+this completed foundation.
 
-Vector-source modules and C#-backed modules should coexist behind the same
-qualified module concept. Conflicting registrations or ambiguous module
-identities must be handled explicitly rather than silently choosing one.
+Vector-source modules and C#-backed modules coexist behind the same qualified
+module concept. Conflicting registrations or ambiguous module identities are
+handled explicitly rather than silently choosing one.
 
-This foundation should be completed before the bytecode VM so both execution
-backends can share one stable library/callable boundary.
+This foundation is complete and remains the shared library/callable boundary that
+later execution backends and external plugin support should reuse.
 
 ### 3.2 Built-in Functions and Standard-Library Foundations
 
-Several useful global built-ins already exist, including:
+The planned built-in/standard-library foundation for this phase is complete.
+
+Global built-ins now include:
 
 - `print`
 - `length`
@@ -158,30 +161,23 @@ Several useful global built-ins already exist, including:
 - `concat`
 - `text`
 - `number`
+- `type`
 
-Further functionality may include:
-
-- Console input
-- Sum, minimum, and maximum
-- Basic type inspection
-- Additional collection helpers
-
-Not every useful function needs to become a global built-in. As the library
-system grows, broader functionality should be grouped into qualified Vector
-libraries where that produces a cleaner language design.
-
-Possible standard-library areas include:
+Broader functionality is kept behind qualified standard-library modules rather than
+flattened into global built-ins. The default runtime now includes:
 
 ```text
 lib.math
-lib.vector
-lib.matrix
 lib.collections
 lib.io
+lib.vector
+lib.matrix
 ```
 
-The exact library set and public APIs should be specified as each area is
-implemented rather than creating a large standard library prematurely.
+This phase added collection-wide `sum`/`min`/`max`, host-backed line input through
+`lib.io.readLine()`, and basic runtime type inspection through `type(value)`.
+Additional collection helpers may still be added later if they prove useful, but a
+large general-purpose standard library is not required for this project.
 
 ### 3.3 Vector and Matrix Operations
 
@@ -204,24 +200,32 @@ print(a + b);
 print(a * 2);
 ```
 
-Remaining stretch work may include:
+The planned vector/matrix stretch functionality for this phase is complete through
+qualified C#-backed standard modules:
 
-- Dot product
-- Vector magnitude
-- Additional useful vector functions
-- Matrices
-- Matrix addition where appropriate
-- Matrix multiplication
-- Other carefully selected linear-algebra operations
+```text
+lib.vector.dot(a, b)
+lib.vector.magnitude(v)
+lib.vector.normalize(v)
 
-More advanced functionality may be implemented through C#-backed Vector
-libraries rather than reimplementing mature numerical algorithms from scratch,
-while still presenting a stable Vector-facing API.
+lib.matrix.shape(matrix)
+lib.matrix.transpose(matrix)
+lib.matrix.add(a, b)
+lib.matrix.multiply(a, b)
+```
+
+Vectors remain ordinary numeric lists. Matrices are non-empty rectangular nested
+numeric lists with non-empty rows. Neither introduces a separate runtime type, and
+matrix-shaped lists do not overload the core `+` or `*` operators.
+
+More advanced linear-algebra functionality may still be added later if useful, but it
+is not part of the completed Standard Library + Linear Algebra v1 phase.
 
 ### 3.4 External C# Library and Plugin Support
 
-After Vector's own C#-backed module interface is stable, it may be opened to
-separately compiled external libraries.
+This is the **next major planned stretch goal**. Vector's own C#-backed module
+interface is now proven by the built-in standard modules, so the next step may open
+that controlled mechanism to separately compiled external libraries.
 
 A future plugin/library SDK could allow a developer to write a C# assembly that:
 
@@ -332,17 +336,14 @@ Create a vector containing 2, 4, and 6, then display its sum.
 into formal Vector code such as:
 
 ```vec
+import lib.collections;
+
 let values = [2, 4, 6];
-print(sum(values));
+print(lib.collections.sum(values));
 ```
 
-As the formal language expands, the generated code may also use qualified
-libraries:
-
-```vec
-import lib.vector;
-print(lib.vector.sum([2, 4, 6]));
-```
+Generated code should use the same qualified standard-library APIs as hand-written
+Vector source rather than inventing unqualified helpers that do not exist.
 
 Any such prototype should make the generated Vector representation visible
 before execution so that its interpretation can be inspected and verified.
@@ -370,19 +371,18 @@ allowing controlled post-MVP growth.
 
 ## 6. Scope Priority
 
-The required interpreter MVP is complete. Post-MVP work should now be
-prioritized in this order:
+The required interpreter MVP is complete. Post-MVP status and remaining priority are:
 
 1. Preserve the completed tree-walking interpreter as the reference
    implementation.
-2. Add the C#/.NET-backed Vector library foundation while keeping existing
-   `.vec` modules working through the same qualified module model.
-3. Expand built-in functions and begin organizing broader functionality into
-   standard Vector libraries.
-4. Complete the planned vector-focused functionality and add matrix operations,
-   using C#/.NET-backed implementation where appropriate.
-5. Add controlled external C# library/plugin support using the proven native
-   library interface.
+2. **Complete:** C#/.NET-backed Vector library foundation with existing `.vec`
+   modules using the same qualified module model.
+3. **Complete:** built-in/standard-library foundation for this phase, including
+   `type`, `lib.math`, `lib.collections`, and `lib.io`.
+4. **Complete:** planned vector/matrix functionality for this phase through
+   `lib.vector` and `lib.matrix`.
+5. **Next:** add controlled external C# library/plugin support using the proven
+   native library interface.
 6. Build the bytecode compiler and stack-based virtual machine against the same
    runtime values, callable contracts, and library boundary.
 7. Build the Visual Studio Community extension on top of the stable language,

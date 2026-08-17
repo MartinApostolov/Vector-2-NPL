@@ -1,6 +1,6 @@
 # Vector Language Specification
 
-**Status:** Vector v1 interpreter semantics  
+**Status:** Vector v1 interpreter and standard-library semantics  
 **Project:** Vector-2-NPL  
 **File extension:** `.vec`  
 **Reference implementation:** C# / .NET 8 tree-walking interpreter
@@ -22,7 +22,8 @@ Vector v1 follows these rules:
 6. Blocks and functions use lexical scope.
 7. Lists are ordinary mutable lists; a list whose current contents are all numbers
    can additionally participate in numeric-list vector operations.
-8. Modules are local `.vec` files accessed through their full qualified paths.
+8. Modules are local `.vec` files or explicitly registered native C#/.NET modules,
+   both accessed through their full qualified paths.
 9. Diagnostics preserve structured source information, including the originating
    imported module when an error occurs there.
 10. The tree-walking interpreter is the v1 reference implementation.
@@ -355,7 +356,9 @@ Both produce:
 [2, 4, 6]
 ```
 
-List/list multiplication, dot product, magnitude, and matrices are not v1 operators.
+List/list multiplication, dot product, magnitude, and matrix arithmetic are not v1
+operators. Dot product, magnitude, normalization, and matrix operations are available
+through the qualified `lib.vector` and `lib.matrix` standard modules defined below.
 
 ### 5.6 General list concatenation
 
@@ -849,6 +852,182 @@ print(lib.math.max(3, 7));
 print(lib.math.pi);
 ```
 
+### 13.9 Standard native module: `lib.collections`
+
+The default runtime registers:
+
+```vec
+import lib.collections;
+```
+
+Its public functions are:
+
+```text
+lib.collections.sum(values)
+lib.collections.min(values)
+lib.collections.max(values)
+```
+
+All three functions require exactly one list argument whose elements are finite
+Vector numbers. They do not mutate the input list.
+
+- `sum([])` returns `0`;
+- `min([])` is invalid and produces a structured runtime failure;
+- `max([])` is invalid and produces a structured runtime failure.
+
+The collection-wide `min` and `max` functions are separate from the two-argument
+scalar `lib.math.min(a, b)` and `lib.math.max(a, b)` functions.
+
+Example:
+
+```vec
+import lib.collections;
+
+let values = [4, -2, 8, 3];
+print(lib.collections.sum(values)); // 13
+print(lib.collections.min(values)); // -2
+print(lib.collections.max(values)); // 8
+```
+
+### 13.10 Standard native module: `lib.io`
+
+The default runtime registers:
+
+```vec
+import lib.io;
+```
+
+Its public function is:
+
+```text
+lib.io.readLine()
+```
+
+`readLine` has arity zero. It reads one line from the input capability supplied by
+the current Vector host:
+
+- an available line is returned as Vector `text`;
+- ordinary leading and trailing spaces are preserved;
+- end-of-input returns `nothing`;
+- calling `readLine` without an input-capable host is a structured runtime failure.
+
+The repository CLI and REPL use input-capable hosts. Embedding applications using
+`VectorEngine` must provide an input-capable host when they want `lib.io.readLine()`.
+
+### 13.11 Standard native module: `lib.vector`
+
+The default runtime registers:
+
+```vec
+import lib.vector;
+```
+
+Its public functions are:
+
+```text
+lib.vector.dot(a, b)
+lib.vector.magnitude(v)
+lib.vector.normalize(v)
+```
+
+A vector argument is an ordinary Vector list whose current elements are all finite
+numbers. The module does not introduce a separate vector runtime type; `type(v)` still
+returns `list`.
+
+`dot(a, b)`:
+
+- requires numeric lists of equal length;
+- returns the sum of element-wise products;
+- returns `0` for two empty vectors;
+- rejects mismatched lengths and non-finite intermediate results.
+
+`magnitude(v)`:
+
+- returns the Euclidean magnitude `sqrt(sum(v[i] * v[i]))`;
+- returns `0` for `[]`;
+- rejects non-finite intermediate/results.
+
+`normalize(v)`:
+
+- returns a new numeric list with each element divided by the vector magnitude;
+- does not mutate the input list;
+- rejects every zero-magnitude vector, including `[]`.
+
+Example:
+
+```vec
+import lib.vector;
+
+print(lib.vector.dot([1, 2, 3], [4, 5, 6])); // 32
+print(lib.vector.magnitude([3, 4]));          // 5
+print(lib.vector.normalize([3, 4]));          // [0.6, 0.8]
+```
+
+### 13.12 Standard native module: `lib.matrix`
+
+The default runtime registers:
+
+```vec
+import lib.matrix;
+```
+
+A matrix is represented by an ordinary nested Vector list. A valid matrix must be:
+
+- a non-empty outer list;
+- made only of non-empty row lists;
+- rectangular, so every row has the same number of columns;
+- made only of finite numeric cells.
+
+Examples:
+
+```vec
+[[1, 2], [3, 4]] // valid 2x2 matrix
+[[1], [2], [3]]  // valid 3x1 matrix
+[]               // invalid
+[[1, 2], [3]]    // invalid: ragged
+```
+
+Matrices remain ordinary runtime `list` values. There is no distinct matrix runtime
+type in this version.
+
+The module provides:
+
+```text
+lib.matrix.shape(matrix)
+lib.matrix.transpose(matrix)
+lib.matrix.add(a, b)
+lib.matrix.multiply(a, b)
+```
+
+`shape(matrix)` returns `[rowCount, columnCount]`.
+
+`transpose(matrix)` returns a new matrix whose rows and columns are exchanged. The
+returned rows do not alias the input rows.
+
+`add(a, b)` requires equal matrix shapes and returns a new matrix containing
+element-wise sums.
+
+`multiply(a, b)` performs standard row-by-column multiplication. If `a` has shape
+`m x n`, `b` must have shape `n x p`, and the result has shape `m x p`. Equivalently,
+the number of columns in `a` must equal the number of rows in `b`.
+
+Matrix addition and multiplication are library functions only. The core `+` and `*`
+operators are not overloaded for matrix-shaped nested lists in this version.
+
+Example:
+
+```vec
+import lib.matrix;
+
+let a = [[1, 2], [3, 4]];
+let b = [[5, 6], [7, 8]];
+
+print(lib.matrix.shape(a));       // [2, 2]
+print(lib.matrix.transpose(a));   // [[1, 3], [2, 4]]
+print(lib.matrix.add(a, b));      // [[6, 8], [10, 12]]
+print(lib.matrix.multiply(a, b)); // [[19, 22], [43, 50]]
+```
+
 ## 14. Core built-ins
 
 The following built-ins are globally available when no ordinary lexical binding of
@@ -919,7 +1098,28 @@ Accepts:
 
 Other values or non-numeric/non-finite text produce a runtime error.
 
-### 14.6 `range(start, end)`
+### 14.6 `type(value)`
+
+Returns a text value naming the current public runtime type. The exact returned names
+are:
+
+```text
+number
+text
+boolean
+list
+function
+nothing
+```
+
+The result reflects the runtime value model, not higher-level library conventions.
+Numeric lists, vector arguments, and matrix-shaped nested lists therefore all report
+`list`.
+
+`type` has arity one and may be shadowed by an ordinary lexical binding just like the
+other core built-ins.
+
+### 14.7 `range(start, end)`
 
 Both arguments must be finite whole numbers representable by the implementation's
 integer range.
@@ -1014,8 +1214,9 @@ dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- program.vec
 
 The runner requires exactly one `.vec` argument in file mode and uses strict UTF-8
 input. The entry file's directory becomes the module root. The normal CLI runtime also
-uses the default native standard-library registry, which currently includes
-`lib.math`.
+uses the default native standard-library registry, which includes `lib.math`,
+`lib.collections`, `lib.io`, `lib.vector`, and `lib.matrix`. The CLI host supplies
+line input, so `lib.io.readLine()` reads from standard input in file mode.
 
 Process exit codes:
 
@@ -1047,7 +1248,9 @@ REPL rules:
 - successful submissions share one top-level environment;
 - functions/variables persist between submissions;
 - imported source and native module state is retained for that REPL session;
-- the default native standard-library registry, including `lib.math`, is available;
+- the default native standard-library registry (`lib.math`, `lib.collections`,
+  `lib.io`, `lib.vector`, and `lib.matrix`) is available;
+- the REPL input stream is also the input source used by `lib.io.readLine()`;
 - an expression statement whose final value is not `nothing` is displayed;
 - unmatched `(`, `{`, or `[` causes continuation input with the `...> ` prompt;
 - `:exit` and `:quit` exit when entered as a top-level REPL command;
@@ -1225,9 +1428,10 @@ Vector v1 does not require:
 - arbitrary external DLL/plugin loading;
 - package management or package publishing;
 - a production-scale standard library beyond the implemented initial modules;
+- dedicated `vector` or `matrix` runtime value kinds;
+- matrix operator overloading in the core `+` or `*` operators;
 - bytecode/native compilation;
 - an integrated debugger;
-- matrix operations beyond the numeric-list foundation;
 - a custom IDE.
 
 These can be explored after the interpreter MVP without changing the core strictness,
