@@ -265,7 +265,7 @@ public sealed class ExternalPluginIntegrationTests
 
         Assert.Equal(VectorPluginErrorKind.DuplicatePlugin, error.ErrorKind);
         Assert.Single(manager.Registrations);
-        Assert.True(manager.Registrations[0].ModuleIds.Any(id => id.QualifiedName == "accept.math"));
+        Assert.Contains(manager.Registrations[0].ModuleIds, id => id.QualifiedName == "accept.math");
     }
 
     [Fact]
