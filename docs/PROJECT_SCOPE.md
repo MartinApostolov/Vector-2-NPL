@@ -223,25 +223,44 @@ is not part of the completed Standard Library + Linear Algebra v1 phase.
 
 ### 3.4 External C# Library and Plugin Support
 
-This is the **next major planned stretch goal**. Vector's own C#-backed module
-interface is now proven by the built-in standard modules, so the next step may open
-that controlled mechanism to separately compiled external libraries.
+**Controlled External C# Plugin Support v1 is complete.** The proven C#-backed native-module
+boundary is now available to separately compiled, explicitly selected plugin assemblies without
+creating a second Vector module system.
 
-A future plugin/library SDK could allow a developer to write a C# assembly that:
+The implemented v1 model provides:
 
-- references a small public Vector library interface;
-- registers one or more qualified Vector modules;
-- exposes approved functions and values;
-- performs explicit Vector/C# value conversion;
-- returns Vector-compatible errors and diagnostics.
+- a small public `IVectorPlugin` / `IVectorPluginContext` contract;
+- stable non-empty plugin ids and `VectorPluginApi.CurrentVersion` compatibility checks;
+- explicit registration of one or more qualified native Vector modules;
+- transactional registration, so a rejected plugin leaves no partially committed modules;
+- explicit DLL loading from CLI or embedding-host paths only;
+- exactly one supported public plugin entry point per selected plugin assembly;
+- plugin-local managed dependency resolution while sharing Vector host assemblies;
+- multiple plugins in one runtime when plugin/module identities do not conflict;
+- repeated CLI `--plugin` options for file execution and REPL startup;
+- an embedded-host `VectorPluginRuntime` path;
+- structured plugin load/registration failures and safe Vector diagnostics for plugin-function
+  runtime failures;
+- a real copyable `Vector.ExamplePlugin` project and developer documentation;
+- integration/failure coverage across loader, registry, runtime, CLI, REPL, dependencies, and
+  conflict behavior.
 
-This stage should build on the same mechanism used by Vector's own native
-standard-library modules rather than creating a second interop system.
+Vector source continues to use ordinary qualified imports regardless of whether a module is local
+`.vec`, built into the standard library, or supplied by a plugin:
 
-Directly exposing arbitrary methods from arbitrary DLLs through reflection is
-not the initial goal. A controlled registration model is preferred because it
-keeps overload resolution, type conversion, diagnostics, compatibility, and
-security understandable.
+```vec
+import example.tools;
+print(example.tools.double(21));
+```
+
+DLL selection is deliberately outside the language. Vector never auto-scans program directories,
+never automatically executes every nearby DLL, and never reflects arbitrary public C# methods into
+Vector. Only members explicitly exported through registered native modules become visible.
+
+External C# plugins are **trusted in-process .NET extensions, not sandboxed scripts**. Loading one
+runs code with the permissions of the Vector process, so users must load only plugin assemblies
+they trust. A security sandbox, automatic package discovery, and arbitrary NuGet/.NET API exposure
+remain outside this completed v1 scope.
 
 ### 3.5 Bytecode Compiler and Virtual Machine
 
@@ -381,9 +400,9 @@ The required interpreter MVP is complete. Post-MVP status and remaining priority
    `type`, `lib.math`, `lib.collections`, and `lib.io`.
 4. **Complete:** planned vector/matrix functionality for this phase through
    `lib.vector` and `lib.matrix`.
-5. **Next:** add controlled external C# library/plugin support using the proven
-   native library interface.
-6. Build the bytecode compiler and stack-based virtual machine against the same
+5. **Complete:** controlled external C# plugin support using the proven native
+   library interface, explicit trusted DLL loading, and versioned registration.
+6. **Next:** build the bytecode compiler and stack-based virtual machine against the same
    runtime values, callable contracts, and library boundary.
 7. Build the Visual Studio Community extension on top of the stable language,
    diagnostics, runtime, and library metadata.

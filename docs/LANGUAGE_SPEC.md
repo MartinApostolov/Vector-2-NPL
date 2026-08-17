@@ -811,9 +811,12 @@ environment. Native callable values participate in ordinary Vector call syntax a
 strict arity checking. Supported host-value conversion is explicit and controlled;
 there is no general reflection-based conversion of arbitrary C# objects.
 
-Native modules are not automatically discovered by scanning assemblies. Vector does
-not provide unrestricted .NET reflection/API access, arbitrary DLL loading, a package
-manifest, or a package manager.
+Native modules are not automatically discovered by scanning assemblies. A host may
+explicitly load a supported external Vector plugin DLL, but Vector source itself has no
+DLL-loading statement or builtin. Loading a plugin does not expose arbitrary .NET methods:
+only values and functions deliberately registered into qualified Vector modules are visible.
+Vector does not provide unrestricted .NET reflection/API access, a package manifest, or a
+package manager.
 
 ### 13.8 Standard native module: `lib.math`
 
@@ -1028,6 +1031,42 @@ print(lib.matrix.add(a, b));      // [[6, 8], [10, 12]]
 print(lib.matrix.multiply(a, b)); // [[19, 22], [43, 50]]
 ```
 
+
+### 13.13 External C# plugin modules
+
+An embedding host, the CLI, or REPL startup may explicitly load one or more supported
+external C# plugin assemblies before Vector code executes. Plugin loading is a host action,
+not part of Vector source syntax.
+
+For example, the host may load a DLL that registers the qualified module `example.tools`.
+Vector source still uses the ordinary module rules:
+
+```vec
+import example.tools;
+
+print(example.tools.double(21));
+```
+
+External plugin modules are native modules for language purposes:
+
+- they occupy ordinary qualified module ids;
+- they must be imported before their members are used;
+- imports do not flatten plugin members into global names;
+- native call arity and runtime behavior are unchanged;
+- a source module and a plugin/native module with the same id produce `ModuleConflict`;
+- two native/plugin registrations cannot silently replace one another.
+
+A plugin may export several modules, and several explicitly loaded plugins may coexist in one
+runtime when their plugin ids and module ids do not conflict. Plugin API compatibility,
+assembly loading, dependency resolution, and registration failures are host/plugin concerns;
+plugin-function calls that reach the Vector runtime use the existing native-call diagnostic
+boundary.
+
+Vector does not auto-scan directories for plugins, does not expose arbitrary public C# methods,
+and does not define source syntax such as `loadPlugin(...)`. External plugins execute trusted
+in-process .NET code; the language specification does not define a sandbox for them. C# authoring
+and deployment details are documented in `docs/PLUGIN_DEVELOPMENT.md`.
+
 ## 14. Core built-ins
 
 The following built-ins are globally available when no ordinary lexical binding of
@@ -1212,11 +1251,21 @@ With the repository CLI project:
 dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- program.vec
 ```
 
-The runner requires exactly one `.vec` argument in file mode and uses strict UTF-8
-input. The entry file's directory becomes the module root. The normal CLI runtime also
-uses the default native standard-library registry, which includes `lib.math`,
-`lib.collections`, `lib.io`, `lib.vector`, and `lib.matrix`. The CLI host supplies
-line input, so `lib.io.readLine()` reads from standard input in file mode.
+The runner requires at most one `.vec` argument and uses strict UTF-8 input. The entry
+file's directory becomes the module root. The normal CLI runtime also uses the default native
+standard-library registry, which includes `lib.math`, `lib.collections`, `lib.io`, `lib.vector`,
+and `lib.matrix`. The CLI host supplies line input, so `lib.io.readLine()` reads from standard
+input in file mode.
+
+Before the optional source file, the CLI accepts repeated explicit plugin options:
+
+```powershell
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- --plugin PluginA.dll --plugin PluginB.dll program.vec
+```
+
+Each `--plugin` requires one following DLL path. Plugin loading/setup failures are CLI setup
+failures (exit code `2`) rather than Vector-language runtime failures. Plugin DLL paths are not
+read from Vector source and are never discovered by directory scanning.
 
 Process exit codes:
 
@@ -1228,11 +1277,20 @@ Process exit codes:
 
 ### 16.2 REPL
 
-Launching the CLI without arguments starts the REPL:
+Launching the CLI without a source file starts the REPL. With no plugins:
 
 ```powershell
 dotnet run --project src/Vector.Cli/Vector.Cli.csproj
 ```
+
+A REPL may also start with one or more explicit trusted plugins:
+
+```powershell
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- --plugin ExamplePlugin.dll
+```
+
+Plugins are loaded before the REPL starts and their registered modules remain available for the
+REPL session, subject to the same explicit `import` requirement as every other module.
 
 Example:
 

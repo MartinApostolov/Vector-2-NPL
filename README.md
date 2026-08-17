@@ -23,13 +23,15 @@ Vector source -> Lexer -> Parser -> AST -> Interpreter -> Result
 - named functions, recursion, closures, and `return`
 - local multi-file modules with qualified access such as `lib.geometry.move(...)`
 - explicitly registered C#/.NET-backed modules using the same qualified `import` model
+- controlled external C# plugins loaded from explicit DLL paths through the same native-module boundary
 - native standard-library modules: `lib.math`, `lib.collections`, `lib.io`, `lib.vector`, and `lib.matrix`
 - built-ins: `print`, `length`, `concat`, `text`, `number`, `type`, and `range`
 - structured lexer, parser, module, native-call, and runtime diagnostics with source locations
-- `.vec` command-line execution, a reusable `VectorEngine`, and an interactive REPL
-- automated tests and 14 focused example entry points/programs
+- `.vec` command-line execution, repeated CLI `--plugin` options, a reusable embedded plugin runtime, and an interactive REPL
+- automated tests and 15 focused example entry points/programs
 
 The formal language rules are in [docs/LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md).
+External C# plugin authors should start with [docs/PLUGIN_DEVELOPMENT.md](docs/PLUGIN_DEVELOPMENT.md).
 The academy/project boundaries and future directions are in
 [docs/PROJECT_SCOPE.md](docs/PROJECT_SCOPE.md).
 
@@ -116,6 +118,33 @@ dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- examples/14_matrix_math
 They import standard modules with ordinary Vector module syntax; no separate
 library-loading command is required.
 
+External plugins are different from the built-in standard library: the host must opt into
+each trusted plugin DLL explicitly. Build the repository example plugin, then load it with
+`--plugin`:
+
+```powershell
+dotnet build examples/plugins/Vector.ExamplePlugin/Vector.ExamplePlugin.csproj
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- --plugin .\examples\plugins\Vector.ExamplePlugin\bin\Debug\net8.0\Vector.ExamplePlugin.dll .\examples\15_external_plugin\main.vec
+```
+
+Expected output:
+
+```text
+42
+42
+Hello, Vector!
+```
+
+The option may repeat before the optional `.vec` entry file:
+
+```powershell
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- --plugin PluginA.dll --plugin PluginB.dll program.vec
+```
+
+Loading a Vector C# plugin executes trusted .NET code in the Vector process. Only load
+plugin assemblies you trust. Vector does not automatically scan program directories for
+plugins.
+
 On Windows, after building, the generated executable can also be run directly:
 
 ```powershell
@@ -159,6 +188,12 @@ vector> function double(number) {
 vector> double(6);
 12
 vector> :exit
+```
+
+External plugins can also be loaded before the REPL starts:
+
+```powershell
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- --plugin .\examples\plugins\Vector.ExamplePlugin\bin\Debug\net8.0\Vector.ExamplePlugin.dll
 ```
 
 The REPL:
@@ -307,8 +342,11 @@ rules. A native module is available only when the host runtime registers it. If 
 local `.vec` file and a native registration both claim the same qualified module name,
 Vector reports an explicit module conflict instead of silently choosing one.
 
-Native modules are registered deliberately by the host; Vector does not scan arbitrary
-assemblies, reflect over installed .NET APIs, or load arbitrary DLLs as modules.
+Native modules are registered deliberately by the host. The default runtime includes the
+standard library, and a host may additionally load supported external plugin DLLs from explicit
+paths. Vector does not auto-scan arbitrary assemblies or expose installed .NET APIs/methods by
+reflection; an external plugin must implement the public plugin contract and explicitly register
+its Vector-facing modules and members.
 
 ## Native standard library
 
@@ -440,6 +478,7 @@ The `examples/` directory provides a focused tour:
 12. [`12_standard_library.vec`](examples/12_standard_library.vec) — `type` and `lib.collections`
 13. [`13_vector_math.vec`](examples/13_vector_math.vec) — `lib.vector`
 14. [`14_matrix_math.vec`](examples/14_matrix_math.vec) — `lib.matrix`
+15. [`15_external_plugin/main.vec`](examples/15_external_plugin/main.vec) — explicit external C# plugin usage
 
 All example programs are also covered by automated execution tests.
 
@@ -463,23 +502,27 @@ or stack traces to Vector code.
 ## Project structure
 
 ```text
-src/Vector.Core/   language front end, runtime, modules, public execution API
-src/Vector.Cli/    file runner, diagnostic formatting, REPL
-tests/Vector.Tests automated lexer/parser/runtime/integration/example tests
-examples/          runnable Vector programs
-docs/              project scope and formal language specification
+src/Vector.Core/      language front end, runtime, modules, public execution API
+src/Vector.Plugins/   external plugin contract, loader, registration manager, embedded runtime
+src/Vector.Cli/       file runner, diagnostic formatting, REPL, explicit `--plugin` loading
+tests/Vector.Tests    automated lexer/parser/runtime/integration/example tests
+examples/             runnable Vector programs and the copyable `Vector.ExamplePlugin` project
+docs/                 project scope, formal language specification, and plugin developer guide
 ```
 
 ## Future work
 
 The required tree-walking interpreter remains the reference implementation. The
-post-MVP native-library foundation and the planned Standard Library + Linear Algebra v1
-phase are implemented: source and registered native modules share one qualified module
-model, with `lib.math`, `lib.collections`, `lib.io`, `lib.vector`, and `lib.matrix`
-available in the default runtime.
+post-MVP native-library foundation, Standard Library + Linear Algebra v1, and
+**Controlled External C# Plugin Support v1** are implemented.
 
-The next major planned stretch goal is controlled external C# library/plugin support
-built on the proven native-module boundary. Later goals remain the custom bytecode
-compiler and VM, a Visual Studio Community extension, package/dependency management if
-useful, and eventually an inspectable natural-language translation layer. Arbitrary DLL
-loading and automatic reflection over .NET APIs are not implemented.
+External plugin support now includes a public versioned contract, transactional module
+registration, explicit DLL loading, plugin-local managed dependency resolution, multiple
+plugins, CLI/REPL `--plugin` startup, embedding support, a real example plugin, and
+integration/failure coverage. Plugins remain trusted in-process .NET extensions rather
+than sandboxed scripts; no directory auto-scan or arbitrary .NET method exposure is
+performed.
+
+The next major planned stretch goal is the custom bytecode compiler and stack-based VM.
+Later goals remain a Visual Studio Community extension, package/dependency management if
+useful, and eventually an inspectable natural-language translation layer.
