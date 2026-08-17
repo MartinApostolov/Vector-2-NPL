@@ -28,6 +28,7 @@ public static class MatrixModule
         context.Export("shape", new NativeFunction("shape", 1, (_, arguments) => Shape(arguments[0])));
         context.Export("transpose", new NativeFunction("transpose", 1, (_, arguments) => Transpose(arguments[0])));
         context.Export("add", new NativeFunction("add", 2, (_, arguments) => Add(arguments[0], arguments[1])));
+        context.Export("multiply", new NativeFunction("multiply", 2, (_, arguments) => Multiply(arguments[0], arguments[1])));
     }
 
     private static ListValue Shape(VectorValue value)
@@ -94,4 +95,53 @@ public static class MatrixModule
 
         return NativeValueConverter.FromList(rows);
     }
+
+    private static ListValue Multiply(VectorValue leftValue, VectorValue rightValue)
+    {
+        var left = MatrixReader.Read(leftValue, "a", "lib.matrix.multiply");
+        var right = MatrixReader.Read(rightValue, "b", "lib.matrix.multiply");
+
+        if (left.ColumnCount != right.RowCount)
+        {
+            throw new NativeRuntimeException(
+                DiagnosticCode.NativeRuntimeFailure,
+                $"lib.matrix.multiply requires left columns to equal right rows, but received " +
+                $"{left.RowCount}x{left.ColumnCount} and {right.RowCount}x{right.ColumnCount}.");
+        }
+
+        var rows = new VectorValue[left.RowCount];
+        for (var rowIndex = 0; rowIndex < left.RowCount; rowIndex++)
+        {
+            var row = new VectorValue[right.ColumnCount];
+            for (var columnIndex = 0; columnIndex < right.ColumnCount; columnIndex++)
+            {
+                var total = 0d;
+                for (var sharedIndex = 0; sharedIndex < left.ColumnCount; sharedIndex++)
+                {
+                    var product = left.Rows[rowIndex][sharedIndex] * right.Rows[sharedIndex][columnIndex];
+                    if (!double.IsFinite(product))
+                    {
+                        throw new NativeRuntimeException(
+                            DiagnosticCode.NativeRuntimeFailure,
+                            $"lib.matrix.multiply produced a non-finite result at cell [{rowIndex}, {columnIndex}].");
+                    }
+
+                    total += product;
+                    if (!double.IsFinite(total))
+                    {
+                        throw new NativeRuntimeException(
+                            DiagnosticCode.NativeRuntimeFailure,
+                            $"lib.matrix.multiply produced a non-finite result at cell [{rowIndex}, {columnIndex}].");
+                    }
+                }
+
+                row[columnIndex] = NativeValueConverter.FromNumber(total);
+            }
+
+            rows[rowIndex] = NativeValueConverter.FromList(row);
+        }
+
+        return NativeValueConverter.FromList(rows);
+    }
+
 }

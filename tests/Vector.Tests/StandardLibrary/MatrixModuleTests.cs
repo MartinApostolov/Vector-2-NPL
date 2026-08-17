@@ -154,6 +154,106 @@ public sealed class MatrixModuleTests
         Assert.Contains("non-finite", diagnostic.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void MultiplyOneByOneMatrix()
+    {
+        AssertMatrix(
+            "lib.matrix.multiply([[2.5]], [[-4]])",
+            new[] { new[] { -10d } });
+    }
+
+    [Fact]
+    public void MultiplySquareMatrices()
+    {
+        AssertMatrix(
+            "lib.matrix.multiply([[1, 2], [3, 4]], [[5, 6], [7, 8]])",
+            new[] { new[] { 19d, 22d }, new[] { 43d, 50d } });
+    }
+
+    [Fact]
+    public void MultiplyRectangularMatrices()
+    {
+        AssertMatrix(
+            "lib.matrix.multiply([[1, 2, 3], [4, 5, 6]], [[7, 8], [9, 10], [11, 12]])",
+            new[] { new[] { 58d, 64d }, new[] { 139d, 154d } });
+    }
+
+    [Fact]
+    public void MultiplyByIdentityPreservesMatrixValues()
+    {
+        AssertMatrix(
+            "lib.matrix.multiply([[2, -3], [4.5, 1]], [[1, 0], [0, 1]])",
+            new[] { new[] { 2d, -3d }, new[] { 4.5d, 1d } });
+    }
+
+    [Fact]
+    public void MultiplySupportsNegativeAndFractionalCells()
+    {
+        AssertMatrix(
+            "lib.matrix.multiply([[-1.5, 2]], [[0.5], [-3]])",
+            new[] { new[] { -6.75d } });
+    }
+
+    [Fact]
+    public void MultiplyRejectsDimensionMismatchAndReportsBothShapes()
+    {
+        var result = Execute("lib.matrix.multiply([[1, 2, 3]], [[1, 2], [3, 4]])");
+
+        Assert.False(result.Success);
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticCode.NativeRuntimeFailure, diagnostic.Code);
+        Assert.Contains("1x3", diagnostic.Message);
+        Assert.Contains("2x2", diagnostic.Message);
+        Assert.Contains("left columns", diagnostic.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("right rows", diagnostic.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("lib.matrix.multiply([1, 2], [[1], [2]])")]
+    [InlineData("lib.matrix.multiply([[1, 2], [3]], [[1], [2]])")]
+    [InlineData("lib.matrix.multiply([[1, 2]], [1, 2])")]
+    [InlineData("lib.matrix.multiply([[1, 2]], [[1], [true]])")]
+    public void MultiplyRejectsMalformedEitherInput(string expression)
+    {
+        var result = Execute(expression);
+
+        Assert.False(result.Success);
+        Assert.Equal(DiagnosticCode.RuntimeTypeError, Assert.Single(result.Diagnostics).Code);
+    }
+
+    [Fact]
+    public void MultiplyAllocatesNewRowsAndDoesNotMutateInputs()
+    {
+        var result = new VectorEngine().Execute(
+            "import lib.matrix; " +
+            "let a = [[1, 2], [3, 4]]; " +
+            "let b = [[5, 6], [7, 8]]; " +
+            "let product = lib.matrix.multiply(a, b); " +
+            "product[0][0] = 99; " +
+            "[a, b, product];");
+
+        Assert.True(result.Success);
+        Assert.Equal(
+            new ListValue(new VectorValue[]
+            {
+                Matrix(new[] { new[] { 1d, 2d }, new[] { 3d, 4d } }),
+                Matrix(new[] { new[] { 5d, 6d }, new[] { 7d, 8d } }),
+                Matrix(new[] { new[] { 99d, 22d }, new[] { 43d, 50d } })
+            }),
+            result.Result);
+    }
+
+    [Fact]
+    public void MultiplyRejectsNonFiniteResult()
+    {
+        var result = Execute("lib.matrix.multiply([[1e308]], [[1e308]])");
+
+        Assert.False(result.Success);
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticCode.NativeRuntimeFailure, diagnostic.Code);
+        Assert.Contains("non-finite", diagnostic.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Theory]
     [InlineData("lib.matrix.shape(1)")]
     [InlineData("lib.matrix.transpose(\"matrix\")")]
@@ -213,6 +313,8 @@ public sealed class MatrixModuleTests
     [InlineData("lib.matrix.transpose([[1]], [[2]])")]
     [InlineData("lib.matrix.add([[1]])")]
     [InlineData("lib.matrix.add([[1]], [[2]], [[3]])")]
+    [InlineData("lib.matrix.multiply([[1]])")]
+    [InlineData("lib.matrix.multiply([[1]], [[2]], [[3]])")]
     public void MatrixFunctionsUseStrictArity(string expression)
     {
         var result = Execute(expression);
@@ -234,6 +336,7 @@ public sealed class MatrixModuleTests
     [InlineData("shape([[1]]);")]
     [InlineData("transpose([[1]]);")]
     [InlineData("add([[1]], [[2]]);")]
+    [InlineData("multiply([[1]], [[2]]);")]
     public void ImportDoesNotLeakUnqualifiedMatrixFunctionNames(string source)
     {
         var result = new VectorEngine().Execute($"import lib.matrix; {source}");
