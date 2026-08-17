@@ -34,6 +34,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.TestPlugin.StandardC
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.ExamplePlugin", "examples\plugins\Vector.ExamplePlugin\Vector.ExamplePlugin.csproj", "{8C5BD1A1-F3C2-4EBA-A621-11D8CB8E7A44}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.TestPlugin.Acceptance", "tests\Vector.TestPlugin.Acceptance\Vector.TestPlugin.Acceptance.csproj", "{2E59F254-5D13-4D02-A7A9-43F3DDB5A3C1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.TestPlugin.ModuleConflict", "tests\Vector.TestPlugin.ModuleConflict\Vector.TestPlugin.ModuleConflict.csproj", "{3B6F2694-87DD-47B1-93D1-B885241C1AF2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.TestPlugin.DuplicateModule", "tests\Vector.TestPlugin.DuplicateModule\Vector.TestPlugin.DuplicateModule.csproj", "{B834C7AC-EEA0-4C8A-AB77-7B33F3D1D90A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -104,5 +110,17 @@ Global
 		{8C5BD1A1-F3C2-4EBA-A621-11D8CB8E7A44}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8C5BD1A1-F3C2-4EBA-A621-11D8CB8E7A44}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8C5BD1A1-F3C2-4EBA-A621-11D8CB8E7A44}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2E59F254-5D13-4D02-A7A9-43F3DDB5A3C1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2E59F254-5D13-4D02-A7A9-43F3DDB5A3C1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2E59F254-5D13-4D02-A7A9-43F3DDB5A3C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2E59F254-5D13-4D02-A7A9-43F3DDB5A3C1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3B6F2694-87DD-47B1-93D1-B885241C1AF2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B6F2694-87DD-47B1-93D1-B885241C1AF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B6F2694-87DD-47B1-93D1-B885241C1AF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B6F2694-87DD-47B1-93D1-B885241C1AF2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B834C7AC-EEA0-4C8A-AB77-7B33F3D1D90A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B834C7AC-EEA0-4C8A-AB77-7B33F3D1D90A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B834C7AC-EEA0-4C8A-AB77-7B33F3D1D90A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B834C7AC-EEA0-4C8A-AB77-7B33F3D1D90A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
