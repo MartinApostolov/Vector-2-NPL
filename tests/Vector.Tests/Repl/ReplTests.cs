@@ -133,6 +133,23 @@ public sealed class ReplTests
     }
 
     [Fact]
+    public void ReplCanUseExpandedStandardLibraryAcrossSubmissions()
+    {
+        var session = Run(
+            "import lib.vector;\n" +
+            "import lib.matrix;\n" +
+            "lib.vector.dot([1, 2], [3, 4]);\n" +
+            "lib.matrix.multiply([[1, 2]], [[3], [4]]);\n" +
+            "type(lib.matrix.shape([[1, 2], [3, 4]]));\n" +
+            ":exit\n");
+
+        Assert.Contains("11", session.Output);
+        Assert.Contains("[[11]]", session.Output);
+        Assert.Contains("list", session.Output);
+        Assert.Empty(session.Error);
+    }
+
+    [Fact]
     public void ReplFormatsParserDiagnosticsWithReplSourceName()
     {
         var session = Run("let = 10;\n:exit\n");

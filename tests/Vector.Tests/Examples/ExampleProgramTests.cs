@@ -18,7 +18,10 @@ public sealed class ExampleProgramTests
             Case("examples/08_vectors.vec", "[5, 7, 9]", "[2, 4, 6]"),
             Case("examples/09_scopes.vec", "20", "10", "11"),
             Case("examples/10_modules/main.vec", "[4, 6]", "[8, 12]"),
-            Case("examples/11_native_math.vec", "5", "10", "7", "3", "256", System.Math.PI.ToString("G", System.Globalization.CultureInfo.InvariantCulture), System.Math.E.ToString("G", System.Globalization.CultureInfo.InvariantCulture))
+            Case("examples/11_native_math.vec", "5", "10", "7", "3", "256", System.Math.PI.ToString("G", System.Globalization.CultureInfo.InvariantCulture), System.Math.E.ToString("G", System.Globalization.CultureInfo.InvariantCulture)),
+            Case("examples/12_standard_library.vec", "list", "18", "1", "9"),
+            Case("examples/13_vector_math.vec", "[5, 7, 9]", "32", "5", "[0.6, 0.8]"),
+            Case("examples/14_matrix_math.vec", "[[6, 8], [10, 12]]", "[[19, 22], [43, 50]]", "[[1, 3], [2, 4]]", "[2, 2]")
         };
 
     [Theory]

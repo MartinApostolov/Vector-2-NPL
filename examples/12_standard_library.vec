@@ -1,0 +1,8 @@
+import lib.collections;
+
+let values = [5, 1, 9, 3];
+
+print(type(values));
+print(lib.collections.sum(values));
+print(lib.collections.min(values));
+print(lib.collections.max(values));
