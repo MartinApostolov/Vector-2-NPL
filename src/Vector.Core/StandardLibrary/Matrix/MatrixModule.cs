@@ -1,3 +1,4 @@
+using Vector.Core.Diagnostics;
 using Vector.Core.Modules;
 using Vector.Core.Modules.Native;
 using Vector.Core.Runtime.Native;
@@ -26,6 +27,7 @@ public static class MatrixModule
     {
         context.Export("shape", new NativeFunction("shape", 1, (_, arguments) => Shape(arguments[0])));
         context.Export("transpose", new NativeFunction("transpose", 1, (_, arguments) => Transpose(arguments[0])));
+        context.Export("add", new NativeFunction("add", 2, (_, arguments) => Add(arguments[0], arguments[1])));
     }
 
     private static ListValue Shape(VectorValue value)
@@ -52,6 +54,42 @@ public static class MatrixModule
             }
 
             rows[columnIndex] = NativeValueConverter.FromList(transposedRow);
+        }
+
+        return NativeValueConverter.FromList(rows);
+    }
+
+    private static ListValue Add(VectorValue leftValue, VectorValue rightValue)
+    {
+        var left = MatrixReader.Read(leftValue, "a", "lib.matrix.add");
+        var right = MatrixReader.Read(rightValue, "b", "lib.matrix.add");
+
+        if (left.RowCount != right.RowCount || left.ColumnCount != right.ColumnCount)
+        {
+            throw new NativeRuntimeException(
+                DiagnosticCode.NativeRuntimeFailure,
+                $"lib.matrix.add requires equal shapes, but received " +
+                $"{left.RowCount}x{left.ColumnCount} and {right.RowCount}x{right.ColumnCount}.");
+        }
+
+        var rows = new VectorValue[left.RowCount];
+        for (var rowIndex = 0; rowIndex < left.RowCount; rowIndex++)
+        {
+            var row = new VectorValue[left.ColumnCount];
+            for (var columnIndex = 0; columnIndex < left.ColumnCount; columnIndex++)
+            {
+                var sum = left.Rows[rowIndex][columnIndex] + right.Rows[rowIndex][columnIndex];
+                if (!double.IsFinite(sum))
+                {
+                    throw new NativeRuntimeException(
+                        DiagnosticCode.NativeRuntimeFailure,
+                        $"lib.matrix.add produced a non-finite result at cell [{rowIndex}, {columnIndex}].");
+                }
+
+                row[columnIndex] = NativeValueConverter.FromNumber(sum);
+            }
+
+            rows[rowIndex] = NativeValueConverter.FromList(row);
         }
 
         return NativeValueConverter.FromList(rows);

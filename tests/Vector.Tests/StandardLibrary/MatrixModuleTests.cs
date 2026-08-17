@@ -58,6 +58,102 @@ public sealed class MatrixModuleTests
             new[] { new[] { 1d, 2d, 3d } });
     }
 
+    [Fact]
+    public void AddOneByOneMatrix()
+    {
+        AssertMatrix(
+            "lib.matrix.add([[2.5]], [[-1]])",
+            new[] { new[] { 1.5d } });
+    }
+
+    [Fact]
+    public void AddSquareMatrices()
+    {
+        AssertMatrix(
+            "lib.matrix.add([[1, 2], [3, 4]], [[5, 6], [7, 8]])",
+            new[] { new[] { 6d, 8d }, new[] { 10d, 12d } });
+    }
+
+    [Fact]
+    public void AddRectangularMatrices()
+    {
+        AssertMatrix(
+            "lib.matrix.add([[1, 2, 3], [4, 5, 6]], [[6, 5, 4], [3, 2, 1]])",
+            new[] { new[] { 7d, 7d, 7d }, new[] { 7d, 7d, 7d } });
+    }
+
+    [Fact]
+    public void AddSupportsNegativeAndFractionalCells()
+    {
+        AssertMatrix(
+            "lib.matrix.add([[-1.5, 2.25]], [[0.5, -0.75]])",
+            new[] { new[] { -1d, 1.5d } });
+    }
+
+    [Theory]
+    [InlineData("lib.matrix.add([[1, 2], [3, 4]], [[5, 6]])", "2x2", "1x2")]
+    [InlineData("lib.matrix.add([[1, 2], [3, 4]], [[5, 6, 7], [8, 9, 10]])", "2x2", "2x3")]
+    public void AddRejectsDimensionMismatchAndReportsBothShapes(
+        string expression,
+        string leftShape,
+        string rightShape)
+    {
+        var result = Execute(expression);
+
+        Assert.False(result.Success);
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticCode.NativeRuntimeFailure, diagnostic.Code);
+        Assert.Contains(leftShape, diagnostic.Message);
+        Assert.Contains(rightShape, diagnostic.Message);
+        Assert.Contains("equal shapes", diagnostic.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("lib.matrix.add([1, 2], [[1, 2]])")]
+    [InlineData("lib.matrix.add([[1, 2], [3]], [[1, 2], [3, 4]])")]
+    [InlineData("lib.matrix.add([[1, 2]], [1, 2])")]
+    [InlineData("lib.matrix.add([[1, 2]], [[1, true]])")]
+    public void AddRejectsMalformedEitherInput(string expression)
+    {
+        var result = Execute(expression);
+
+        Assert.False(result.Success);
+        Assert.Equal(DiagnosticCode.RuntimeTypeError, Assert.Single(result.Diagnostics).Code);
+    }
+
+    [Fact]
+    public void AddAllocatesNewRowsAndDoesNotMutateInputs()
+    {
+        var result = new VectorEngine().Execute(
+            "import lib.matrix; " +
+            "let a = [[1, 2], [3, 4]]; " +
+            "let b = [[5, 6], [7, 8]]; " +
+            "let sum = lib.matrix.add(a, b); " +
+            "sum[0][0] = 99; " +
+            "[a, b, sum];");
+
+        Assert.True(result.Success);
+        Assert.Equal(
+            new ListValue(new VectorValue[]
+            {
+                Matrix(new[] { new[] { 1d, 2d }, new[] { 3d, 4d } }),
+                Matrix(new[] { new[] { 5d, 6d }, new[] { 7d, 8d } }),
+                Matrix(new[] { new[] { 99d, 8d }, new[] { 10d, 12d } })
+            }),
+            result.Result);
+    }
+
+    [Fact]
+    public void AddRejectsNonFiniteResult()
+    {
+        var result = Execute("lib.matrix.add([[1e308]], [[1e308]])");
+
+        Assert.False(result.Success);
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticCode.NativeRuntimeFailure, diagnostic.Code);
+        Assert.Contains("non-finite", diagnostic.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Theory]
     [InlineData("lib.matrix.shape(1)")]
     [InlineData("lib.matrix.transpose(\"matrix\")")]
@@ -115,6 +211,8 @@ public sealed class MatrixModuleTests
     [InlineData("lib.matrix.shape([[1]], [[2]])")]
     [InlineData("lib.matrix.transpose()")]
     [InlineData("lib.matrix.transpose([[1]], [[2]])")]
+    [InlineData("lib.matrix.add([[1]])")]
+    [InlineData("lib.matrix.add([[1]], [[2]], [[3]])")]
     public void MatrixFunctionsUseStrictArity(string expression)
     {
         var result = Execute(expression);
@@ -135,6 +233,7 @@ public sealed class MatrixModuleTests
     [Theory]
     [InlineData("shape([[1]]);")]
     [InlineData("transpose([[1]]);")]
+    [InlineData("add([[1]], [[2]]);")]
     public void ImportDoesNotLeakUnqualifiedMatrixFunctionNames(string source)
     {
         var result = new VectorEngine().Execute($"import lib.matrix; {source}");
