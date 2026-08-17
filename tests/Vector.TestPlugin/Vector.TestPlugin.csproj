@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Vector.Core\Vector.Core.csproj" />
     <ProjectReference Include="..\..\src\Vector.Plugins\Vector.Plugins.csproj" />
+    <ProjectReference Include="..\Vector.TestPlugin.Dependency\Vector.TestPlugin.Dependency.csproj" />
   </ItemGroup>
 
 </Project>

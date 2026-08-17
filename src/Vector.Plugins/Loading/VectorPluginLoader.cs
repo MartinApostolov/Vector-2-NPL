@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Runtime.Loader;
 
 namespace Vector.Plugins.Loading;
 
@@ -11,7 +10,9 @@ public sealed class VectorPluginLoader
     public IVectorPlugin LoadFromPath(string path)
     {
         var fullPath = NormalizePluginPath(path);
-        var assembly = LoadAssembly(fullPath);
+        var loadContext = new VectorPluginLoadContext(fullPath);
+        var assembly = LoadAssembly(fullPath, loadContext);
+        ValidateManagedDependencies(assembly, loadContext, fullPath);
         var entryType = DiscoverEntryType(assembly, fullPath);
         return CreatePlugin(entryType, fullPath);
     }
@@ -58,18 +59,51 @@ public sealed class VectorPluginLoader
         return fullPath;
     }
 
-    private static Assembly LoadAssembly(string fullPath)
+    private static Assembly LoadAssembly(string fullPath, VectorPluginLoadContext loadContext)
     {
         try
         {
-            return AssemblyLoadContext.Default.LoadFromAssemblyPath(fullPath);
+            return loadContext.LoadFromAssemblyPath(fullPath);
         }
-        catch (Exception exception) when (
-            exception is BadImageFormatException
-                or FileLoadException
-                or FileNotFoundException)
+        catch (Exception exception) when (IsAssemblyLoadException(exception))
         {
             throw AssemblyLoadFailure(fullPath, exception);
+        }
+    }
+
+    private static void ValidateManagedDependencies(
+        Assembly rootAssembly,
+        VectorPluginLoadContext loadContext,
+        string fullPath)
+    {
+        var pending = new Queue<Assembly>();
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        pending.Enqueue(rootAssembly);
+
+        while (pending.Count > 0)
+        {
+            var assembly = pending.Dequeue();
+            var identity = assembly.FullName ?? assembly.GetName().Name ?? assembly.Location;
+            if (!visited.Add(identity))
+            {
+                continue;
+            }
+
+            foreach (var reference in assembly.GetReferencedAssemblies())
+            {
+                try
+                {
+                    var dependency = loadContext.LoadManagedDependency(reference);
+                    if (dependency is not null && loadContext.Owns(dependency))
+                    {
+                        pending.Enqueue(dependency);
+                    }
+                }
+                catch (Exception exception) when (IsAssemblyLoadException(exception))
+                {
+                    throw AssemblyLoadFailure(fullPath, exception);
+                }
+            }
         }
     }
 
@@ -83,7 +117,8 @@ public sealed class VectorPluginLoader
         catch (Exception exception) when (
             exception is ReflectionTypeLoadException
                 or FileLoadException
-                or FileNotFoundException)
+                or FileNotFoundException
+                or TypeLoadException)
         {
             throw AssemblyLoadFailure(fullPath, exception);
         }
@@ -159,10 +194,16 @@ public sealed class VectorPluginLoader
         }
     }
 
+    private static bool IsAssemblyLoadException(Exception exception) =>
+        exception is BadImageFormatException
+            or FileLoadException
+            or FileNotFoundException
+            or TypeLoadException;
+
     private static VectorPluginLoadException AssemblyLoadFailure(string fullPath, Exception exception) =>
         new(
             VectorPluginLoadErrorKind.AssemblyLoadFailure,
-            $"Plugin assembly '{fullPath}' could not be loaded as a compatible .NET assembly.",
+            $"Plugin assembly '{fullPath}' or one of its managed dependencies could not be loaded.",
             fullPath,
             exception);
 }

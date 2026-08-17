@@ -14,7 +14,7 @@ public sealed class PluginLoaderTests
         var registry = new NativeModuleRegistry();
         var manager = new VectorPluginManager(registry);
 
-        var registration = manager.LoadFromPath(Fixture("Vector.TestPlugin.dll"));
+        var registration = manager.LoadFromPath(Fixture("Vector.TestPlugin", "Vector.TestPlugin.dll"));
 
         Assert.Equal("fixture.valid", registration.Id);
         Assert.Equal(VectorPluginApi.CurrentVersion, registration.ApiVersion);
@@ -89,7 +89,7 @@ public sealed class PluginLoaderTests
     public void LoadFromPathRejectsAssemblyWithNoPluginEntryPoint()
     {
         var error = Assert.Throws<VectorPluginLoadException>(() =>
-            Manager().LoadFromPath(Fixture("Vector.TestPlugin.NoEntry.dll")));
+            Manager().LoadFromPath(Fixture("Vector.TestPlugin.NoEntry", "Vector.TestPlugin.NoEntry.dll")));
 
         Assert.Equal(VectorPluginLoadErrorKind.NoPluginEntryPoint, error.ErrorKind);
     }
@@ -98,7 +98,7 @@ public sealed class PluginLoaderTests
     public void LoadFromPathRejectsAssemblyWithMultiplePluginEntryPoints()
     {
         var error = Assert.Throws<VectorPluginLoadException>(() =>
-            Manager().LoadFromPath(Fixture("Vector.TestPlugin.MultipleEntries.dll")));
+            Manager().LoadFromPath(Fixture("Vector.TestPlugin.MultipleEntries", "Vector.TestPlugin.MultipleEntries.dll")));
 
         Assert.Equal(VectorPluginLoadErrorKind.MultiplePluginEntryPoints, error.ErrorKind);
     }
@@ -107,7 +107,7 @@ public sealed class PluginLoaderTests
     public void LoadFromPathRejectsAbstractPluginEntryPoint()
     {
         var error = Assert.Throws<VectorPluginLoadException>(() =>
-            Manager().LoadFromPath(Fixture("Vector.TestPlugin.AbstractEntry.dll")));
+            Manager().LoadFromPath(Fixture("Vector.TestPlugin.AbstractEntry", "Vector.TestPlugin.AbstractEntry.dll")));
 
         Assert.Equal(VectorPluginLoadErrorKind.InvalidPluginEntryPoint, error.ErrorKind);
     }
@@ -116,7 +116,7 @@ public sealed class PluginLoaderTests
     public void LoadFromPathRejectsEntryPointWithoutPublicParameterlessConstructor()
     {
         var error = Assert.Throws<VectorPluginLoadException>(() =>
-            Manager().LoadFromPath(Fixture("Vector.TestPlugin.BadConstructor.dll")));
+            Manager().LoadFromPath(Fixture("Vector.TestPlugin.BadConstructor", "Vector.TestPlugin.BadConstructor.dll")));
 
         Assert.Equal(VectorPluginLoadErrorKind.InvalidPluginEntryPoint, error.ErrorKind);
     }
@@ -127,7 +127,7 @@ public sealed class PluginLoaderTests
         var manager = Manager();
 
         var error = Assert.Throws<VectorPluginLoadException>(() =>
-            manager.LoadFromPath(Fixture("Vector.TestPlugin.ThrowingConstructor.dll")));
+            manager.LoadFromPath(Fixture("Vector.TestPlugin.ThrowingConstructor", "Vector.TestPlugin.ThrowingConstructor.dll")));
 
         Assert.Equal(VectorPluginLoadErrorKind.ConstructorFailure, error.ErrorKind);
         Assert.IsType<InvalidOperationException>(error.InnerException);
@@ -140,7 +140,7 @@ public sealed class PluginLoaderTests
         var manager = Manager();
 
         var error = Assert.Throws<VectorPluginException>(() =>
-            manager.LoadFromPath(Fixture("Vector.TestPlugin.ApiMismatch.dll")));
+            manager.LoadFromPath(Fixture("Vector.TestPlugin.ApiMismatch", "Vector.TestPlugin.ApiMismatch.dll")));
 
         Assert.Equal(VectorPluginErrorKind.ApiVersionMismatch, error.ErrorKind);
         Assert.Empty(manager.Registrations);
@@ -153,7 +153,7 @@ public sealed class PluginLoaderTests
         var manager = new VectorPluginManager(registry);
 
         var error = Assert.Throws<VectorPluginException>(() =>
-            manager.LoadFromPath(Fixture("Vector.TestPlugin.RegistrationFailure.dll")));
+            manager.LoadFromPath(Fixture("Vector.TestPlugin.RegistrationFailure", "Vector.TestPlugin.RegistrationFailure.dll")));
 
         Assert.Equal(VectorPluginErrorKind.RegistrationFailure, error.ErrorKind);
         Assert.False(registry.TryGet(Id("fixture.staged"), out _));
@@ -162,8 +162,8 @@ public sealed class PluginLoaderTests
 
     private static VectorPluginManager Manager() => new(new NativeModuleRegistry());
 
-    private static string Fixture(string assemblyName) =>
-        Path.Combine(AppContext.BaseDirectory, assemblyName);
+    private static string Fixture(string projectName, string assemblyName) =>
+        PluginFixture.Assembly(projectName, assemblyName);
 
     private static ModuleId Id(string qualifiedName) =>
         new(qualifiedName.Split('.', StringSplitOptions.RemoveEmptyEntries));
