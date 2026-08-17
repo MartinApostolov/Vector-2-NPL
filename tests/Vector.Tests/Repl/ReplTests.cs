@@ -120,6 +120,19 @@ public sealed class ReplTests
     }
 
     [Fact]
+    public void ReplReadLineUsesSameInjectedInputReader()
+    {
+        var session = Run(
+            "import lib.io;\n" +
+            "lib.io.readLine();\n" +
+            "hello from repl\n" +
+            ":exit\n");
+
+        Assert.Contains("hello from repl", session.Output);
+        Assert.Empty(session.Error);
+    }
+
+    [Fact]
     public void ReplFormatsParserDiagnosticsWithReplSourceName()
     {
         var session = Run("let = 10;\n:exit\n");

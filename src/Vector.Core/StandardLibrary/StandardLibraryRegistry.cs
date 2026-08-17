@@ -1,5 +1,6 @@
 using Vector.Core.Modules.Native;
 using Vector.Core.StandardLibrary.Collections;
+using Vector.Core.StandardLibrary.IO;
 using Vector.Core.StandardLibrary.Math;
 
 namespace Vector.Core.StandardLibrary;
@@ -15,6 +16,7 @@ public static class StandardLibraryRegistry
         var registry = new NativeModuleRegistry();
         MathModule.Register(registry);
         CollectionsModule.Register(registry);
+        IOModule.Register(registry);
         return registry;
     }
 }

@@ -57,7 +57,7 @@ internal static class Program
         }
 
         var programRoot = Path.GetDirectoryName(filePath) ?? Directory.GetCurrentDirectory();
-        var host = new VectorHost(Console.WriteLine);
+        var host = new VectorInputHost(Console.WriteLine, Console.ReadLine);
         var result = new VectorEngine().Execute(source, programRoot, host);
 
         if (result.Success)

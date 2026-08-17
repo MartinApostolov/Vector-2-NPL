@@ -53,6 +53,22 @@ public sealed class VectorEngineTests
     }
 
     [Fact]
+    public void ExecutePreservesInputCapabilityWhileCapturingOutput()
+    {
+        var forwarded = new List<string>();
+        var host = new VectorInputHost(forwarded.Add, () => "Ada");
+
+        var result = new VectorEngine().Execute(
+            "import lib.io; let name = lib.io.readLine(); print(name); name;",
+            host: host);
+
+        Assert.True(result.Success);
+        Assert.Equal(new TextValue("Ada"), result.Result);
+        Assert.Equal(new[] { "Ada" }, result.Output);
+        Assert.Equal(result.Output, forwarded);
+    }
+
+    [Fact]
     public void LexerFailureIsReturnedAsDiagnosticWithoutExecutingProgram()
     {
         var result = new VectorEngine().Execute("print(\"should not run\"); @;");

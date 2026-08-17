@@ -41,7 +41,7 @@ public sealed class VectorEngine
         ArgumentNullException.ThrowIfNull(source);
 
         var output = new List<string>();
-        var executionHost = new CapturingHost(output, host);
+        var executionHost = CreateExecutionHost(output, host);
         var sourceText = new SourceText(source);
         var parseResult = new Parser(sourceText).ParseCompilationUnit();
 
@@ -79,6 +79,12 @@ public sealed class VectorEngine
         }
     }
 
+
+    private static IVectorHost CreateExecutionHost(List<string> output, IVectorHost? forward) =>
+        forward is IVectorInputHost inputHost
+            ? new CapturingInputHost(output, inputHost)
+            : new CapturingHost(output, forward);
+
     private static IReadOnlyList<Diagnostic> TranslateModuleError(ModuleLoadException error)
     {
         if (error.Kind == ModuleLoadErrorKind.InvalidSyntax && error.Diagnostics.Count > 0)
@@ -107,7 +113,7 @@ public sealed class VectorEngine
         };
     }
 
-    private sealed class CapturingHost : IVectorHost
+    private class CapturingHost : IVectorHost
     {
         private readonly List<string> _output;
         private readonly IVectorHost? _forward;
@@ -124,5 +130,18 @@ public sealed class VectorEngine
             _output.Add(text);
             _forward?.WriteLine(text);
         }
+    }
+
+    private sealed class CapturingInputHost : CapturingHost, IVectorInputHost
+    {
+        private readonly IVectorInputHost _input;
+
+        public CapturingInputHost(List<string> output, IVectorInputHost input)
+            : base(output, input)
+        {
+            _input = input;
+        }
+
+        public string? ReadLine() => _input.ReadLine();
     }
 }

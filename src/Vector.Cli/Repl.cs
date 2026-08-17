@@ -44,7 +44,7 @@ public sealed class Repl
             new ModuleResolver(root),
             nativeModules ?? StandardLibraryRegistry.CreateDefault());
         _interpreter = new Interpreter(
-            host: new VectorHost(_output.WriteLine),
+            host: new VectorInputHost(_output.WriteLine, _input.ReadLine),
             moduleLoader: moduleLoader);
     }
 
