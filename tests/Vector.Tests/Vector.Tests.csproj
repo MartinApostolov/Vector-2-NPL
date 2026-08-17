@@ -21,6 +21,14 @@
     <ProjectReference Include="..\..\src\Vector.Core\Vector.Core.csproj" />
     <ProjectReference Include="..\..\src\Vector.Plugins\Vector.Plugins.csproj" />
     <ProjectReference Include="..\..\src\Vector.Cli\Vector.Cli.csproj" />
+    <ProjectReference Include="..\Vector.TestPlugin\Vector.TestPlugin.csproj" />
+    <ProjectReference Include="..\Vector.TestPlugin.NoEntry\Vector.TestPlugin.NoEntry.csproj" />
+    <ProjectReference Include="..\Vector.TestPlugin.MultipleEntries\Vector.TestPlugin.MultipleEntries.csproj" />
+    <ProjectReference Include="..\Vector.TestPlugin.AbstractEntry\Vector.TestPlugin.AbstractEntry.csproj" />
+    <ProjectReference Include="..\Vector.TestPlugin.BadConstructor\Vector.TestPlugin.BadConstructor.csproj" />
+    <ProjectReference Include="..\Vector.TestPlugin.ThrowingConstructor\Vector.TestPlugin.ThrowingConstructor.csproj" />
+    <ProjectReference Include="..\Vector.TestPlugin.ApiMismatch\Vector.TestPlugin.ApiMismatch.csproj" />
+    <ProjectReference Include="..\Vector.TestPlugin.RegistrationFailure\Vector.TestPlugin.RegistrationFailure.csproj" />
   </ItemGroup>
 
 </Project>

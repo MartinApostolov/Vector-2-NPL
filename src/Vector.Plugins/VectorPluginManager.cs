@@ -1,5 +1,6 @@
 using Vector.Core.Modules;
 using Vector.Core.Modules.Native;
+using Vector.Plugins.Loading;
 
 namespace Vector.Plugins;
 
@@ -19,6 +20,15 @@ public sealed class VectorPluginManager
     }
 
     public IReadOnlyList<VectorPluginRegistration> Registrations => _registrations.AsReadOnly();
+
+    /// <summary>
+    /// Loads one explicitly selected plugin assembly and registers its single plugin entry point.
+    /// </summary>
+    public VectorPluginRegistration LoadFromPath(string path)
+    {
+        var plugin = new VectorPluginLoader().LoadFromPath(path);
+        return Register(plugin);
+    }
 
     public VectorPluginRegistration Register(IVectorPlugin plugin)
     {
