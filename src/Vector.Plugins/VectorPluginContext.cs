@@ -13,12 +13,15 @@ internal sealed class VectorPluginContext : IVectorPluginContext
 
     internal IReadOnlyList<NativeModuleDefinition> StagedModules => _stagedModules;
 
+    internal ModuleId? DuplicateModuleId { get; private set; }
+
     public void RegisterModule(NativeModuleDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);
 
         if (!_stagedModuleIds.Add(definition.Id))
         {
+            DuplicateModuleId ??= definition.Id;
             throw new InvalidOperationException(
                 $"Plugin module '{definition.Id}' has already been staged.");
         }
