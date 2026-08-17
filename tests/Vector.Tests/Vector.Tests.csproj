@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\Vector.Cli\Vector.Cli.csproj" />
     <ProjectReference Include="..\Vector.TestPlugin\Vector.TestPlugin.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\Vector.TestPlugin.Dependency\Vector.TestPlugin.Dependency.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Vector.TestPlugin.Second\Vector.TestPlugin.Second.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\Vector.TestPlugin.NoEntry\Vector.TestPlugin.NoEntry.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\Vector.TestPlugin.MultipleEntries\Vector.TestPlugin.MultipleEntries.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\Vector.TestPlugin.AbstractEntry\Vector.TestPlugin.AbstractEntry.csproj" ReferenceOutputAssembly="false" />

@@ -14,6 +14,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.TestPlugin", "tests\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.TestPlugin.Dependency", "tests\Vector.TestPlugin.Dependency\Vector.TestPlugin.Dependency.csproj", "{A6F02013-36C9-4B7C-AC0A-6D89A81FE59C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.TestPlugin.Second", "tests\Vector.TestPlugin.Second\Vector.TestPlugin.Second.csproj", "{B90B9B25-BE76-42C3-9B10-7E393828A56A}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.TestPlugin.NoEntry", "tests\Vector.TestPlugin.NoEntry\Vector.TestPlugin.NoEntry.csproj", "{CAB9DE10-2928-4801-A5DC-3EF4A78993BA}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.TestPlugin.MultipleEntries", "tests\Vector.TestPlugin.MultipleEntries\Vector.TestPlugin.MultipleEntries.csproj", "{E69073AC-34EC-4B02-8746-97BB2E3DE3DC}"
@@ -86,5 +88,9 @@ Global
 		{A6F02013-36C9-4B7C-AC0A-6D89A81FE59C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A6F02013-36C9-4B7C-AC0A-6D89A81FE59C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A6F02013-36C9-4B7C-AC0A-6D89A81FE59C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B90B9B25-BE76-42C3-9B10-7E393828A56A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B90B9B25-BE76-42C3-9B10-7E393828A56A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B90B9B25-BE76-42C3-9B10-7E393828A56A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B90B9B25-BE76-42C3-9B10-7E393828A56A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
