@@ -2,6 +2,7 @@ using Vector.Core.Modules.Native;
 using Vector.Core.StandardLibrary.Collections;
 using Vector.Core.StandardLibrary.IO;
 using Vector.Core.StandardLibrary.Math;
+using Vector.Core.StandardLibrary.Matrix;
 using Vector.Core.StandardLibrary.Vector;
 
 namespace Vector.Core.StandardLibrary;
@@ -19,6 +20,7 @@ public static class StandardLibraryRegistry
         CollectionsModule.Register(registry);
         IOModule.Register(registry);
         VectorModule.Register(registry);
+        MatrixModule.Register(registry);
         return registry;
     }
 }
