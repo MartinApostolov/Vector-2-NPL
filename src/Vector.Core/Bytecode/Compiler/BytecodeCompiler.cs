@@ -14,9 +14,15 @@ internal sealed class BytecodeCompiler
 {
     private const int IndexListRequirement = 0;
     private const int IndexedAssignmentListRequirement = 1;
+    private const int ForListRequirement = 2;
     private const int IfBooleanRequirement = 0;
     private const int AndBooleanRequirement = 1;
     private const int OrBooleanRequirement = 2;
+    private const int WhileBooleanRequirement = 3;
+
+    private readonly Stack<LoopCompilationContext> _loopContexts = new();
+    private int _scopeDepth;
+    private int _hiddenNameCounter;
 
     public BytecodeCompilationResult Compile(
         CompilationUnit compilationUnit,
@@ -24,6 +30,10 @@ internal sealed class BytecodeCompiler
         string? sourceText = null)
     {
         ArgumentNullException.ThrowIfNull(compilationUnit);
+
+        _loopContexts.Clear();
+        _scopeDepth = 0;
+        _hiddenNameCounter = 0;
 
         var builder = new BytecodeBuilder();
 
@@ -49,7 +59,7 @@ internal sealed class BytecodeCompiler
         return new BytecodeCompilationResult(new BytecodeProgram(builder.Build(sourceName, sourceText)));
     }
 
-    private static void CompileStatement(StatementSyntax statement, BytecodeBuilder builder)
+    private void CompileStatement(StatementSyntax statement, BytecodeBuilder builder)
     {
         switch (statement)
         {
@@ -73,27 +83,51 @@ internal sealed class BytecodeCompiler
                 CompileIf(conditional, builder);
                 return;
 
+            case WhileStatement loop:
+                CompileWhile(loop, builder);
+                return;
+
+            case ForStatement loop:
+                CompileFor(loop, builder);
+                return;
+
+            case BreakStatement breakStatement:
+                CompileLoopControl(breakStatement, builder, isContinue: false);
+                return;
+
+            case ContinueStatement continueStatement:
+                CompileLoopControl(continueStatement, builder, isContinue: true);
+                return;
+
             default:
                 throw new NotSupportedException(
                     $"Statement type '{statement.GetType().Name}' is not supported by the current bytecode compiler stage.");
         }
     }
 
-    private static void CompileBlock(BlockStatement block, BytecodeBuilder builder)
+    private void CompileBlock(BlockStatement block, BytecodeBuilder builder)
     {
         builder.Emit(OpCode.EnterScope, block.Span);
+        _scopeDepth++;
 
-        foreach (var statement in block.Statements)
+        try
         {
-            CompileStatement(statement, builder);
-            builder.Emit(OpCode.Pop, statement.Span);
+            foreach (var statement in block.Statements)
+            {
+                CompileStatement(statement, builder);
+                builder.Emit(OpCode.Pop, statement.Span);
+            }
+        }
+        finally
+        {
+            _scopeDepth--;
         }
 
         builder.Emit(OpCode.ExitScope, block.Span);
         builder.Emit(OpCode.Nothing, block.Span);
     }
 
-    private static void CompileIf(IfStatement conditional, BytecodeBuilder builder)
+    private void CompileIf(IfStatement conditional, BytecodeBuilder builder)
     {
         CompileExpression(conditional.Condition, builder);
         builder.Emit(OpCode.RequireBoolean, IfBooleanRequirement, conditional.Condition.Span);
@@ -122,7 +156,165 @@ internal sealed class BytecodeCompiler
         builder.PatchJumpToCurrent(endJump);
     }
 
-    private static void CompileExpression(ExpressionSyntax expression, BytecodeBuilder builder)
+    private void CompileWhile(WhileStatement loop, BytecodeBuilder builder)
+    {
+        var conditionStart = builder.InstructionCount;
+        CompileExpression(loop.Condition, builder);
+        builder.Emit(OpCode.RequireBoolean, WhileBooleanRequirement, loop.Condition.Span);
+        var falseJump = builder.EmitJump(OpCode.JumpIfFalse, loop.Condition.Span);
+        builder.Emit(OpCode.Pop, loop.Condition.Span);
+
+        var context = new LoopCompilationContext(_scopeDepth);
+        _loopContexts.Push(context);
+        try
+        {
+            CompileBlock(loop.Body, builder);
+        }
+        finally
+        {
+            _loopContexts.Pop();
+        }
+
+        // A normally completed block leaves Vector 'nothing'; loops discard that
+        // per-iteration statement result before jumping back to the condition.
+        builder.Emit(OpCode.Pop, loop.Body.Span);
+        PatchJumps(builder, context.ContinueJumps, conditionStart);
+        builder.Emit(OpCode.Jump, conditionStart, loop.Span);
+
+        builder.PatchJumpToCurrent(falseJump);
+        builder.Emit(OpCode.Pop, loop.Condition.Span);
+
+        var breakTarget = builder.InstructionCount;
+        PatchJumps(builder, context.BreakJumps, breakTarget);
+        builder.Emit(OpCode.Nothing, loop.Span);
+    }
+
+    private void CompileFor(ForStatement loop, BytecodeBuilder builder)
+    {
+        var hiddenId = _hiddenNameCounter++;
+        var snapshotNameIndex = builder.AddName($"$for_snapshot_{hiddenId}");
+        var indexNameIndex = builder.AddName($"$for_index_{hiddenId}");
+        var loopVariableNameIndex = builder.AddName(loop.VariableName);
+
+        // Evaluate and validate the iterable exactly once, then take the same shallow
+        // snapshot used by the reference interpreter before any iteration begins.
+        CompileExpression(loop.Iterable, builder);
+        builder.Emit(OpCode.RequireList, ForListRequirement, loop.Iterable.Span);
+        builder.Emit(OpCode.SnapshotList, loop.Iterable.Span);
+        builder.Emit(OpCode.DeclareVariable, snapshotNameIndex, loop.Span);
+        builder.Emit(OpCode.Pop, loop.Span);
+
+        EmitNumberConstant(builder, 0d, loop.Span);
+        builder.Emit(OpCode.DeclareVariable, indexNameIndex, loop.Span);
+        builder.Emit(OpCode.Pop, loop.Span);
+
+        var conditionStart = builder.InstructionCount;
+        builder.Emit(OpCode.GetVariable, indexNameIndex, loop.Span);
+        builder.Emit(OpCode.GetVariable, snapshotNameIndex, loop.Span);
+        builder.Emit(OpCode.ListCount, loop.Span);
+        builder.Emit(OpCode.Less, loop.Span);
+        var falseJump = builder.EmitJump(OpCode.JumpIfFalse, loop.Span);
+        builder.Emit(OpCode.Pop, loop.Span);
+
+        // The loop variable and body declarations intentionally share one fresh scope
+        // per iteration, matching the interpreter's same-scope redeclaration rules.
+        var context = new LoopCompilationContext(_scopeDepth);
+        _loopContexts.Push(context);
+        builder.Emit(OpCode.EnterScope, loop.Body.Span);
+        _scopeDepth++;
+
+        try
+        {
+            builder.Emit(OpCode.GetVariable, snapshotNameIndex, loop.Span);
+            builder.Emit(OpCode.GetVariable, indexNameIndex, loop.Span);
+            builder.Emit(OpCode.GetIndex, loop.Span);
+            builder.Emit(OpCode.DeclareVariable, loopVariableNameIndex, loop.Span);
+            builder.Emit(OpCode.Pop, loop.Span);
+
+            foreach (var statement in loop.Body.Statements)
+            {
+                CompileStatement(statement, builder);
+                builder.Emit(OpCode.Pop, statement.Span);
+            }
+        }
+        finally
+        {
+            _scopeDepth--;
+            _loopContexts.Pop();
+        }
+
+        builder.Emit(OpCode.ExitScope, loop.Body.Span);
+
+        var continueTarget = builder.InstructionCount;
+        PatchJumps(builder, context.ContinueJumps, continueTarget);
+
+        builder.Emit(OpCode.GetVariable, indexNameIndex, loop.Span);
+        EmitNumberConstant(builder, 1d, loop.Span);
+        builder.Emit(OpCode.Add, loop.Span);
+        builder.Emit(OpCode.AssignVariable, indexNameIndex, loop.Span);
+        builder.Emit(OpCode.Jump, conditionStart, loop.Span);
+
+        builder.PatchJumpToCurrent(falseJump);
+        builder.Emit(OpCode.Pop, loop.Span);
+
+        var breakTarget = builder.InstructionCount;
+        PatchJumps(builder, context.BreakJumps, breakTarget);
+        builder.Emit(OpCode.Nothing, loop.Span);
+    }
+
+    private void CompileLoopControl(
+        StatementSyntax statement,
+        BytecodeBuilder builder,
+        bool isContinue)
+    {
+        if (_loopContexts.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"'{(isContinue ? "continue" : "break")}' reached bytecode compilation outside a loop.");
+        }
+
+        var context = _loopContexts.Peek();
+        EmitScopeUnwind(builder, context.BaseScopeDepth, statement.Span);
+        var jump = builder.EmitJump(OpCode.Jump, statement.Span);
+
+        if (isContinue)
+        {
+            context.ContinueJumps.Add(jump);
+        }
+        else
+        {
+            context.BreakJumps.Add(jump);
+        }
+    }
+
+    private void EmitScopeUnwind(BytecodeBuilder builder, int targetDepth, Vector.Core.Source.SourceSpan span)
+    {
+        if (targetDepth < 0 || targetDepth > _scopeDepth)
+        {
+            throw new InvalidOperationException(
+                $"Cannot unwind lexical scope depth {_scopeDepth} to {targetDepth}.");
+        }
+
+        for (var depth = _scopeDepth; depth > targetDepth; depth--)
+        {
+            builder.Emit(OpCode.ExitScope, span);
+        }
+    }
+
+    private static void PatchJumps(BytecodeBuilder builder, IEnumerable<int> jumps, int target)
+    {
+        foreach (var jump in jumps)
+        {
+            builder.PatchJump(jump, target);
+        }
+    }
+
+    private static void EmitNumberConstant(BytecodeBuilder builder, double value, Vector.Core.Source.SourceSpan span)
+    {
+        builder.Emit(OpCode.Constant, builder.AddConstant(new NumberValue(value)), span);
+    }
+
+    private void CompileExpression(ExpressionSyntax expression, BytecodeBuilder builder)
     {
         switch (expression)
         {
@@ -186,7 +378,7 @@ internal sealed class BytecodeCompiler
         builder.Emit(OpCode.Constant, constantIndex, literal.Span);
     }
 
-    private static void CompileList(ListExpression list, BytecodeBuilder builder)
+    private void CompileList(ListExpression list, BytecodeBuilder builder)
     {
         foreach (var element in list.Elements)
         {
@@ -196,7 +388,7 @@ internal sealed class BytecodeCompiler
         builder.Emit(OpCode.BuildList, list.Elements.Count, list.Span);
     }
 
-    private static void CompileIndex(IndexExpression index, BytecodeBuilder builder)
+    private void CompileIndex(IndexExpression index, BytecodeBuilder builder)
     {
         // Match the interpreter: evaluate and validate the target before evaluating
         // the index expression so an invalid target prevents index side effects.
@@ -206,7 +398,7 @@ internal sealed class BytecodeCompiler
         builder.Emit(OpCode.GetIndex, index.Span);
     }
 
-    private static void CompileAssignment(AssignmentExpression assignment, BytecodeBuilder builder)
+    private void CompileAssignment(AssignmentExpression assignment, BytecodeBuilder builder)
     {
         // Assignment is right-associative. Preserve the interpreter rule that the
         // right-hand side is evaluated before either assignment target is changed.
@@ -241,7 +433,7 @@ internal sealed class BytecodeCompiler
             $"Assignment target type '{assignment.Target.GetType().Name}' is not supported.");
     }
 
-    private static void CompileBinary(BinaryExpression binary, BytecodeBuilder builder)
+    private void CompileBinary(BinaryExpression binary, BytecodeBuilder builder)
     {
         if (binary.OperatorToken.Kind == TokenKind.AndKeyword)
         {
@@ -269,7 +461,7 @@ internal sealed class BytecodeCompiler
         builder.Emit(MapBinaryOperator(binary.OperatorToken.Kind), binary.Span);
     }
 
-    private static void CompileShortCircuitLogical(
+    private void CompileShortCircuitLogical(
         BinaryExpression binary,
         BytecodeBuilder builder,
         OpCode shortCircuitJump,

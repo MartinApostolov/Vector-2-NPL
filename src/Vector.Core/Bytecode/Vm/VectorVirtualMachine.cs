@@ -13,9 +13,11 @@ internal sealed class VectorVirtualMachine
 {
     private const int IndexListRequirement = 0;
     private const int IndexedAssignmentListRequirement = 1;
+    private const int ForListRequirement = 2;
     private const int IfBooleanRequirement = 0;
     private const int AndBooleanRequirement = 1;
     private const int OrBooleanRequirement = 2;
+    private const int WhileBooleanRequirement = 3;
 
     public VmExecutionResult Execute(BytecodeProgram program)
     {
@@ -179,6 +181,14 @@ internal sealed class VectorVirtualMachine
                         ExecuteSetIndex(instruction, stack);
                         break;
 
+                    case OpCode.SnapshotList:
+                        ExecuteSnapshotList(instruction, stack);
+                        break;
+
+                    case OpCode.ListCount:
+                        ExecuteListCount(instruction, stack);
+                        break;
+
                     case OpCode.Jump:
                         instructionPointer = GetJumpTarget(chunk, instruction);
                         break;
@@ -302,6 +312,7 @@ internal sealed class VectorVirtualMachine
         {
             IndexListRequirement => "Indexing requires a list target",
             IndexedAssignmentListRequirement => "Indexed assignment requires a list target",
+            ForListRequirement => "A 'for' loop requires a list iterable",
             var requirement => throw new InvalidOperationException(
                 $"RequireList has unknown requirement kind {requirement}.")
         };
@@ -325,6 +336,7 @@ internal sealed class VectorVirtualMachine
             IfBooleanRequirement => "An 'if' condition must be a boolean",
             AndBooleanRequirement => "'and' requires boolean operands",
             OrBooleanRequirement => "'or' requires boolean operands",
+            WhileBooleanRequirement => "A 'while' condition must be a boolean",
             var requirement => throw new InvalidOperationException(
                 $"RequireBoolean has unknown requirement kind {requirement}.")
         };
@@ -366,6 +378,34 @@ internal sealed class VectorVirtualMachine
             value.Value,
             instruction.Span);
         stack.Push(new VmStackValue(result, instruction.Span));
+    }
+
+    private static void ExecuteSnapshotList(
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack)
+    {
+        var value = Pop(stack, instruction);
+        if (value.Value is not ListValue list)
+        {
+            throw new InvalidOperationException(
+                "SnapshotList requires a previously validated list value.");
+        }
+
+        stack.Push(new VmStackValue(new ListValue(list.Elements), instruction.Span));
+    }
+
+    private static void ExecuteListCount(
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack)
+    {
+        var value = Pop(stack, instruction);
+        if (value.Value is not ListValue list)
+        {
+            throw new InvalidOperationException(
+                "ListCount requires a list value.");
+        }
+
+        stack.Push(new VmStackValue(new NumberValue(list.Count), instruction.Span));
     }
 
     private static int GetJumpTarget(BytecodeChunk chunk, BytecodeInstruction instruction)
