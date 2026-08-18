@@ -1,5 +1,6 @@
 using System.Text;
 using Vector.Core.Diagnostics;
+using Vector.Core.Execution;
 using Vector.Core.Parsing;
 using Vector.Core.Modules.Native;
 using Vector.Core.Runtime.Native;
@@ -22,16 +23,27 @@ public sealed class ModuleLoader
     private readonly List<ModuleId> _loadingStack = new();
     private readonly HashSet<ModuleId> _initialized = new();
     private readonly HashSet<ModuleId> _initializing = new();
+    private readonly ISourceModuleExecutor _sourceModuleExecutor;
 
     public ModuleLoader(ModuleResolver resolver)
-        : this(resolver, new NativeModuleRegistry())
+        : this(resolver, new NativeModuleRegistry(), new InterpreterSourceModuleExecutor())
     {
     }
 
     public ModuleLoader(ModuleResolver resolver, NativeModuleRegistry nativeModules)
+        : this(resolver, nativeModules, new InterpreterSourceModuleExecutor())
+    {
+    }
+
+    internal ModuleLoader(
+        ModuleResolver resolver,
+        NativeModuleRegistry nativeModules,
+        ISourceModuleExecutor sourceModuleExecutor)
     {
         Resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
         NativeModules = nativeModules ?? throw new ArgumentNullException(nameof(nativeModules));
+        _sourceModuleExecutor = sourceModuleExecutor
+            ?? throw new ArgumentNullException(nameof(sourceModuleExecutor));
     }
 
     public ModuleResolver Resolver { get; }
@@ -227,8 +239,7 @@ public sealed class ModuleLoader
 
         try
         {
-            var interpreter = new Interpreter(module.Environment, host, this);
-            interpreter.Execute(sourceData.Syntax, sourceData.FilePath, sourceData.Source);
+            _sourceModuleExecutor.Execute(module, host, this);
         }
         catch (RuntimeError error)
         {

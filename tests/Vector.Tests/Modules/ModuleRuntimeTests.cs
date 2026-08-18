@@ -1,7 +1,10 @@
 using Vector.Core.Diagnostics;
+using Vector.Core.Execution;
 using Vector.Core.Modules;
+using Vector.Core.Modules.Native;
 using Vector.Core.Parsing;
 using Vector.Core.Runtime;
+using Vector.Core.Runtime.Callable;
 using Vector.Core.Runtime.Host;
 using Vector.Core.Runtime.Values;
 using Vector.Core.Source;
@@ -243,6 +246,43 @@ public sealed class ModuleRuntimeTests
     }
 
     [Fact]
+    public void ExistingModuleLoaderConstructorsKeepInterpreterSourceExecutionByDefault()
+    {
+        using var program = new TemporaryProgram();
+        program.WriteModule("default.runtime", "function identity(value) { return value; }");
+
+        var module = program.Loader.Import(Id("default.runtime"), program.Host);
+
+        Assert.IsType<UserFunction>(module.Environment.Get("identity", Span()));
+    }
+
+    [Fact]
+    public void SourceModuleExecutionStrategyCanBeInjectedWithoutChangingParseOnlyLoad()
+    {
+        using var program = new TemporaryProgram();
+        program.WriteModule("custom", "let value = 42;");
+        var executor = new RecordingSourceModuleExecutor();
+        var loader = new ModuleLoader(
+            new ModuleResolver(program.Root),
+            new NativeModuleRegistry(),
+            executor);
+
+        var loaded = loader.Load(Id("custom"));
+
+        Assert.Equal(0, executor.CallCount);
+        Assert.False(loader.IsInitialized(Id("custom")));
+
+        var imported = loader.Import(Id("custom"), program.Host);
+
+        Assert.Same(loaded, imported);
+        Assert.Equal(1, executor.CallCount);
+        Assert.Same(loaded, executor.LastModule);
+        Assert.Same(loader, executor.LastLoader);
+        Assert.Same(program.Host, executor.LastHost);
+        Assert.True(loader.IsInitialized(Id("custom")));
+    }
+
+    [Fact]
     public void LoadStillOnlyParsesAndDoesNotInitializeUntilImport()
     {
         using var program = new TemporaryProgram();
@@ -361,6 +401,25 @@ public sealed class ModuleRuntimeTests
         var parseResult = new Parser(new SourceText(source)).ParseCompilationUnit();
         Assert.Empty(parseResult.Diagnostics);
         return parseResult.Root;
+    }
+
+    private sealed class RecordingSourceModuleExecutor : ISourceModuleExecutor
+    {
+        public int CallCount { get; private set; }
+
+        public LoadedModule? LastModule { get; private set; }
+
+        public IVectorHost? LastHost { get; private set; }
+
+        public ModuleLoader? LastLoader { get; private set; }
+
+        public void Execute(LoadedModule module, IVectorHost host, ModuleLoader moduleLoader)
+        {
+            CallCount++;
+            LastModule = module;
+            LastHost = host;
+            LastLoader = moduleLoader;
+        }
     }
 
     private sealed class TemporaryProgram : IDisposable
