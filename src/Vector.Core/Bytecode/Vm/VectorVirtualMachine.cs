@@ -1,6 +1,10 @@
 using Vector.Core.Bytecode;
 using Vector.Core.Diagnostics;
+using Vector.Core.Modules;
 using Vector.Core.Runtime;
+using Vector.Core.Runtime.Builtins;
+using Vector.Core.Runtime.Callable;
+using Vector.Core.Runtime.Host;
 using Vector.Core.Runtime.Values;
 using Vector.Core.Source;
 using RuntimeEnvironment = Vector.Core.Runtime.Environment;
@@ -20,13 +24,28 @@ internal sealed class VectorVirtualMachine
     private const int OrBooleanRequirement = 2;
     private const int WhileBooleanRequirement = 3;
 
+    private readonly RuntimeEnvironment? _rootEnvironment;
+    private readonly IReadOnlyDictionary<string, VectorValue> _builtins;
+    private readonly VmCallableBridge _callableBridge;
+
+    public VectorVirtualMachine(
+        RuntimeEnvironment? environment = null,
+        IVectorHost? host = null,
+        ModuleLoader? moduleLoader = null)
+    {
+        _rootEnvironment = environment;
+        var executionHost = host ?? new VectorHost();
+        _builtins = BuiltinRegistry.Create(executionHost);
+        _callableBridge = new VmCallableBridge(executionHost, moduleLoader);
+    }
+
     public VmExecutionResult Execute(BytecodeProgram program)
     {
         ArgumentNullException.ThrowIfNull(program);
 
         var stack = new Stack<VmStackValue>();
         var frames = new Stack<VmCallFrame>();
-        frames.Push(new VmCallFrame(program.EntryPoint, new RuntimeEnvironment(), stackBase: 0));
+        frames.Push(new VmCallFrame(program.EntryPoint, _rootEnvironment ?? new RuntimeEnvironment(), stackBase: 0));
 
         VmCallFrame? activeFrame = null;
 
@@ -291,14 +310,23 @@ internal sealed class VectorVirtualMachine
         stack.Push(new VmStackValue(NothingValue.Instance, instruction.Span));
     }
 
-    private static void ExecuteGetVariable(
+    private void ExecuteGetVariable(
         BytecodeChunk chunk,
         BytecodeInstruction instruction,
         Stack<VmStackValue> stack,
         RuntimeEnvironment environment)
     {
         var name = GetName(chunk, instruction);
-        stack.Push(new VmStackValue(environment.Get(name, instruction.Span), instruction.Span));
+
+        try
+        {
+            stack.Push(new VmStackValue(environment.Get(name, instruction.Span), instruction.Span));
+        }
+        catch (RuntimeError error) when (error.Code == DiagnosticCode.UndefinedVariable
+            && _builtins.TryGetValue(name, out var builtin))
+        {
+            stack.Push(new VmStackValue(builtin, instruction.Span));
+        }
     }
 
     private static void ExecuteAssignVariable(
@@ -465,7 +493,7 @@ internal sealed class VectorVirtualMachine
             instruction.Span));
     }
 
-    private static void ExecuteValidateCall(
+    private void ExecuteValidateCall(
         BytecodeInstruction instruction,
         Stack<VmStackValue> stack)
     {
@@ -482,23 +510,14 @@ internal sealed class VectorVirtualMachine
         }
 
         var callee = stack.Peek();
-        if (callee.Value is not BytecodeFunctionValue function)
-        {
-            throw RuntimeOperations.CreateTypeError(
-                $"Only functions can be called, but received {callee.Value.TypeName}.",
-                callee.Span);
-        }
-
-        if (argumentCount != function.Arity)
-        {
-            throw new RuntimeError(
-                DiagnosticCode.ArgumentCountMismatch,
-                $"Function expects {function.Arity} arguments, but received {argumentCount}.",
-                instruction.Span);
-        }
+        _callableBridge.ValidateCall(
+            callee.Value,
+            argumentCount,
+            callee.Span,
+            instruction.Span);
     }
 
-    private static void ExecuteCall(
+    private void ExecuteCall(
         BytecodeInstruction instruction,
         Stack<VmStackValue> stack,
         Stack<VmCallFrame> frames)
@@ -517,26 +536,45 @@ internal sealed class VectorVirtualMachine
         }
 
         var callee = Pop(stack, instruction);
-        if (callee.Value is not BytecodeFunctionValue function || function.Arity != argumentCount)
+        if (callee.Value is BytecodeFunctionValue function)
         {
-            throw new InvalidOperationException(
-                "Call requires a BytecodeFunctionValue previously validated by ValidateCall.");
+            if (function.Arity != argumentCount)
+            {
+                throw new InvalidOperationException(
+                    "Call received a bytecode function whose arity was not validated by ValidateCall.");
+            }
+
+            var environment = new RuntimeEnvironment(function.Closure);
+            for (var index = 0; index < function.Prototype.Parameters.Count; index++)
+            {
+                environment.Declare(
+                    function.Prototype.Parameters[index],
+                    arguments[index],
+                    function.Prototype.DeclarationSpan);
+            }
+
+            frames.Push(new VmCallFrame(
+                function.Prototype.Chunk,
+                environment,
+                stack.Count,
+                instruction.Span));
+            return;
         }
 
-        var environment = new RuntimeEnvironment(function.Closure);
-        for (var index = 0; index < function.Prototype.Parameters.Count; index++)
+        if (callee.Value is IVectorCallable callable)
         {
-            environment.Declare(
-                function.Prototype.Parameters[index],
-                arguments[index],
-                function.Prototype.DeclarationSpan);
+            var callerEnvironment = frames.Peek().Environment;
+            var result = _callableBridge.Invoke(
+                callable,
+                callerEnvironment,
+                arguments,
+                instruction.Span);
+            stack.Push(new VmStackValue(result, instruction.Span));
+            return;
         }
 
-        frames.Push(new VmCallFrame(
-            function.Prototype.Chunk,
-            environment,
-            stack.Count,
-            instruction.Span));
+        throw new InvalidOperationException(
+            "Call requires a callable value previously validated by ValidateCall.");
     }
 
     private static void ExecuteReturn(
