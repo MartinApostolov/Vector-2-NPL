@@ -19,6 +19,7 @@ public sealed class VectorPluginRuntime
         NativeModules = nativeModules;
         Plugins = plugins;
         Engine = new VectorEngine(nativeModules);
+        VmEngine = new VectorVmEngine(nativeModules);
     }
 
     /// <summary>
@@ -35,6 +36,11 @@ public sealed class VectorPluginRuntime
     /// Gets the Vector engine bound to <see cref="NativeModules"/>.
     /// </summary>
     public VectorEngine Engine { get; }
+
+    /// <summary>
+    /// Gets the Vector VM engine bound to <see cref="NativeModules"/>.
+    /// </summary>
+    public VectorVmEngine VmEngine { get; }
 
     /// <summary>
     /// Creates a runtime with Vector's standard library and loads every explicitly supplied plugin
@@ -63,4 +69,13 @@ public sealed class VectorPluginRuntime
         string? programRoot = null,
         IVectorHost? host = null) =>
         Engine.Execute(source, programRoot, host);
+
+    /// <summary>
+    /// Executes Vector source through the shared VM engine while reusing the same plugin registry.
+    /// </summary>
+    public ExecutionResult ExecuteVm(
+        string source,
+        string? programRoot = null,
+        IVectorHost? host = null) =>
+        VmEngine.Execute(source, programRoot, host);
 }
