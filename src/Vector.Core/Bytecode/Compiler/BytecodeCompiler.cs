@@ -30,17 +30,11 @@ internal sealed class BytecodeCompiler
             for (var index = 0; index < compilationUnit.Statements.Count; index++)
             {
                 var statement = compilationUnit.Statements[index];
-                if (statement is not ExpressionStatement expressionStatement)
-                {
-                    throw new NotSupportedException(
-                        $"Statement type '{statement.GetType().Name}' is not supported by the current bytecode compiler stage.");
-                }
-
-                CompileExpression(expressionStatement.Expression, builder);
+                CompileStatement(statement, builder);
 
                 if (index < compilationUnit.Statements.Count - 1)
                 {
-                    builder.Emit(OpCode.Pop, expressionStatement.Span);
+                    builder.Emit(OpCode.Pop, statement.Span);
                 }
             }
         }
@@ -49,12 +43,56 @@ internal sealed class BytecodeCompiler
         return new BytecodeCompilationResult(new BytecodeProgram(builder.Build(sourceName, sourceText)));
     }
 
+    private static void CompileStatement(StatementSyntax statement, BytecodeBuilder builder)
+    {
+        switch (statement)
+        {
+            case ExpressionStatement expressionStatement:
+                CompileExpression(expressionStatement.Expression, builder);
+                return;
+
+            case VariableDeclaration declaration:
+                CompileExpression(declaration.Initializer, builder);
+                builder.Emit(
+                    OpCode.DeclareVariable,
+                    builder.AddName(declaration.Name),
+                    declaration.Span);
+                return;
+
+            case BlockStatement block:
+                CompileBlock(block, builder);
+                return;
+
+            default:
+                throw new NotSupportedException(
+                    $"Statement type '{statement.GetType().Name}' is not supported by the current bytecode compiler stage.");
+        }
+    }
+
+    private static void CompileBlock(BlockStatement block, BytecodeBuilder builder)
+    {
+        builder.Emit(OpCode.EnterScope, block.Span);
+
+        foreach (var statement in block.Statements)
+        {
+            CompileStatement(statement, builder);
+            builder.Emit(OpCode.Pop, statement.Span);
+        }
+
+        builder.Emit(OpCode.ExitScope, block.Span);
+        builder.Emit(OpCode.Nothing, block.Span);
+    }
+
     private static void CompileExpression(ExpressionSyntax expression, BytecodeBuilder builder)
     {
         switch (expression)
         {
             case LiteralExpression literal:
                 CompileLiteral(literal, builder);
+                return;
+
+            case NameExpression name:
+                builder.Emit(OpCode.GetVariable, builder.AddName(name.Name), name.Span);
                 return;
 
             case GroupingExpression grouping:
@@ -68,6 +106,10 @@ internal sealed class BytecodeCompiler
 
             case BinaryExpression binary:
                 CompileBinary(binary, builder);
+                return;
+
+            case AssignmentExpression assignment:
+                CompileAssignment(assignment, builder);
                 return;
 
             default:
@@ -95,6 +137,25 @@ internal sealed class BytecodeCompiler
 
         var constantIndex = builder.AddConstant(value);
         builder.Emit(OpCode.Constant, constantIndex, literal.Span);
+    }
+
+    private static void CompileAssignment(AssignmentExpression assignment, BytecodeBuilder builder)
+    {
+        if (assignment.Target is not NameExpression name)
+        {
+            throw new NotSupportedException(
+                "Only variable assignment is supported by the current bytecode compiler stage; indexed assignment is added later.");
+        }
+
+        // Preserve interpreter semantics: evaluate the right-hand side before changing
+        // or validating the target binding.
+        CompileExpression(assignment.Value, builder);
+        var nameIndex = builder.AddName(name.Name);
+        builder.Emit(OpCode.AssignVariable, nameIndex, name.Span);
+
+        // Re-read the assigned binding so the expression result carries the full
+        // assignment span while undefined-target diagnostics still point at the target name.
+        builder.Emit(OpCode.GetVariable, nameIndex, assignment.Span);
     }
 
     private static void CompileBinary(BinaryExpression binary, BytecodeBuilder builder)

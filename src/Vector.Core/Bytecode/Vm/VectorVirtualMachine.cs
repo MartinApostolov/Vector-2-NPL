@@ -2,6 +2,7 @@ using Vector.Core.Bytecode;
 using Vector.Core.Runtime;
 using Vector.Core.Runtime.Values;
 using Vector.Core.Source;
+using RuntimeEnvironment = Vector.Core.Runtime.Environment;
 
 namespace Vector.Core.Bytecode.Vm;
 
@@ -16,6 +17,7 @@ internal sealed class VectorVirtualMachine
 
         var chunk = program.EntryPoint;
         var stack = new Stack<VmStackValue>();
+        var environment = new RuntimeEnvironment();
         var instructionPointer = 0;
 
         try
@@ -131,6 +133,26 @@ internal sealed class VectorVirtualMachine
                         ExecuteComparison(stack, instruction, ">=", (left, right) => left >= right);
                         break;
 
+                    case OpCode.EnterScope:
+                        environment = new RuntimeEnvironment(environment);
+                        break;
+
+                    case OpCode.ExitScope:
+                        environment = ExitScope(environment);
+                        break;
+
+                    case OpCode.DeclareVariable:
+                        ExecuteDeclareVariable(chunk, instruction, stack, environment);
+                        break;
+
+                    case OpCode.GetVariable:
+                        ExecuteGetVariable(chunk, instruction, stack, environment);
+                        break;
+
+                    case OpCode.AssignVariable:
+                        ExecuteAssignVariable(chunk, instruction, stack, environment);
+                        break;
+
                     case OpCode.Halt:
                         return new VmExecutionResult(FinalResult(stack));
 
@@ -161,6 +183,62 @@ internal sealed class VectorVirtualMachine
         }
 
         stack.Push(new VmStackValue(chunk.Constants[operand], instruction.Span));
+    }
+
+    private static void ExecuteDeclareVariable(
+        BytecodeChunk chunk,
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack,
+        RuntimeEnvironment environment)
+    {
+        var name = GetName(chunk, instruction);
+        var initializer = Pop(stack, instruction);
+        environment.Declare(name, initializer.Value, instruction.Span);
+        stack.Push(new VmStackValue(NothingValue.Instance, instruction.Span));
+    }
+
+    private static void ExecuteGetVariable(
+        BytecodeChunk chunk,
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack,
+        RuntimeEnvironment environment)
+    {
+        var name = GetName(chunk, instruction);
+        stack.Push(new VmStackValue(environment.Get(name, instruction.Span), instruction.Span));
+    }
+
+    private static void ExecuteAssignVariable(
+        BytecodeChunk chunk,
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack,
+        RuntimeEnvironment environment)
+    {
+        var name = GetName(chunk, instruction);
+        var value = Pop(stack, instruction);
+        environment.Assign(name, value.Value, instruction.Span);
+    }
+
+    private static RuntimeEnvironment ExitScope(RuntimeEnvironment environment)
+    {
+        if (environment.Enclosing is null)
+        {
+            throw new InvalidOperationException(
+                "Bytecode attempted to exit the root lexical environment.");
+        }
+
+        return environment.Enclosing;
+    }
+
+    private static string GetName(BytecodeChunk chunk, BytecodeInstruction instruction)
+    {
+        var operand = RequireOperand(instruction);
+        if (operand < 0 || operand >= chunk.Names.Count)
+        {
+            throw new InvalidOperationException(
+                $"{instruction.OpCode} instruction references invalid name pool index {operand}.");
+        }
+
+        return chunk.Names[operand];
     }
 
     private static void ExecuteBinary(

@@ -101,10 +101,10 @@ public sealed class CompilerExpressionTests
     }
 
     [Fact]
-    public void CurrentCompilerStageRejectsLogicalOperatorsAndNonExpressionStatements()
+    public void CurrentCompilerStageRejectsLogicalOperatorsAndLaterStatements()
     {
         Assert.Throws<NotSupportedException>(() => Compile("true and false;"));
-        Assert.Throws<NotSupportedException>(() => Compile("let value = 1;"));
+        Assert.Throws<NotSupportedException>(() => Compile("if true { 1; }"));
     }
 
     private static BytecodeCompilationResult Compile(string source, string? sourceName = null)
