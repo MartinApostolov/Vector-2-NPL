@@ -25,8 +25,11 @@ internal sealed class VectorVirtualMachine
     private const int WhileBooleanRequirement = 3;
 
     private readonly RuntimeEnvironment? _rootEnvironment;
+    private readonly IVectorHost _host;
+    private readonly ModuleLoader? _moduleLoader;
     private readonly IReadOnlyDictionary<string, VectorValue> _builtins;
     private readonly VmCallableBridge _callableBridge;
+    private readonly HashSet<ModuleId> _importedModules = new();
 
     public VectorVirtualMachine(
         RuntimeEnvironment? environment = null,
@@ -34,9 +37,10 @@ internal sealed class VectorVirtualMachine
         ModuleLoader? moduleLoader = null)
     {
         _rootEnvironment = environment;
-        var executionHost = host ?? new VectorHost();
-        _builtins = BuiltinRegistry.Create(executionHost);
-        _callableBridge = new VmCallableBridge(executionHost, moduleLoader);
+        _host = host ?? new VectorHost();
+        _moduleLoader = moduleLoader;
+        _builtins = BuiltinRegistry.Create(_host);
+        _callableBridge = new VmCallableBridge(_host, moduleLoader);
     }
 
     public VmExecutionResult Execute(BytecodeProgram program)
@@ -252,6 +256,14 @@ internal sealed class VectorVirtualMachine
 
                     case OpCode.Return:
                         ExecuteReturn(instruction, stack, frames);
+                        break;
+
+                    case OpCode.Import:
+                        ExecuteImport(chunk, instruction, stack);
+                        break;
+
+                    case OpCode.GetQualifiedMember:
+                        ExecuteGetQualifiedMember(chunk, instruction, stack, frame.Environment);
                         break;
 
                     case OpCode.Halt:
@@ -605,6 +617,112 @@ internal sealed class VectorVirtualMachine
         stack.Push(new VmStackValue(
             result.Value,
             returningFrame.CallSpan ?? instruction.Span));
+    }
+
+
+    private void ExecuteImport(
+        BytecodeChunk chunk,
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack)
+    {
+        if (_moduleLoader is null)
+        {
+            throw new InvalidOperationException(
+                "Executing an import requires a VM configured with a ModuleLoader.");
+        }
+
+        var moduleId = GetModule(chunk, instruction);
+        _moduleLoader.Import(moduleId, _host);
+        _importedModules.Add(moduleId);
+        stack.Push(new VmStackValue(NothingValue.Instance, instruction.Span));
+    }
+
+    private void ExecuteGetQualifiedMember(
+        BytecodeChunk chunk,
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack,
+        RuntimeEnvironment environment)
+    {
+        var qualifiedName = GetName(chunk, instruction);
+
+        if (_moduleLoader is null)
+        {
+            throw new RuntimeError(
+                DiagnosticCode.UndefinedVariable,
+                $"Qualified module name '{qualifiedName}' is not available.",
+                instruction.Span);
+        }
+
+        var pathSegments = qualifiedName.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        var accessibleModules = GetAccessibleModules(environment);
+
+        foreach (var moduleId in accessibleModules.OrderByDescending(id => id.Segments.Count))
+        {
+            if (pathSegments.Length != moduleId.Segments.Count + 1
+                || !PathStartsWith(pathSegments, moduleId.Segments))
+            {
+                continue;
+            }
+
+            if (!_moduleLoader.TryGetLoaded(moduleId, out var module) || module is null)
+            {
+                continue;
+            }
+
+            var memberName = pathSegments[^1];
+            var value = module.Environment.Get(memberName, instruction.Span);
+            stack.Push(new VmStackValue(value, instruction.Span));
+            return;
+        }
+
+        throw new RuntimeError(
+            DiagnosticCode.UndefinedVariable,
+            $"Qualified module member '{qualifiedName}' is not available in this scope.",
+            instruction.Span);
+    }
+
+    private IEnumerable<ModuleId> GetAccessibleModules(RuntimeEnvironment environment)
+    {
+        if (_moduleLoader is not null
+            && _moduleLoader.TryGetModuleForEnvironment(environment, out var owner)
+            && owner is not null)
+        {
+            return owner.Imports;
+        }
+
+        return _importedModules;
+    }
+
+    private static bool PathStartsWith(
+        IReadOnlyList<string> path,
+        IReadOnlyList<string> prefix)
+    {
+        if (path.Count < prefix.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < prefix.Count; index++)
+        {
+            if (!string.Equals(path[index], prefix[index], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static ModuleId GetModule(BytecodeChunk chunk, BytecodeInstruction instruction)
+    {
+        var operand = RequireOperand(instruction);
+        if (operand < 0 || operand >= chunk.Modules.Count)
+        {
+            throw new InvalidOperationException(
+                $"{instruction.OpCode} instruction references invalid module pool index {operand}.");
+        }
+
+        return chunk.Modules[operand];
     }
 
     private static int GetJumpTarget(BytecodeChunk chunk, BytecodeInstruction instruction)

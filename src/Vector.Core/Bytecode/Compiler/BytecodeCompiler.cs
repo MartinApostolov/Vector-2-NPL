@@ -1,5 +1,6 @@
 using Vector.Core.Bytecode;
 using Vector.Core.Lexing;
+using Vector.Core.Modules;
 using Vector.Core.Runtime.Values;
 using Vector.Core.Syntax;
 using Vector.Core.Syntax.Expressions;
@@ -77,6 +78,13 @@ internal sealed class BytecodeCompiler
                     OpCode.DeclareVariable,
                     builder.AddName(declaration.Name),
                     declaration.Span);
+                return;
+
+            case ImportStatement import:
+                builder.Emit(
+                    OpCode.Import,
+                    builder.AddModule(ModuleId.FromImport(import)),
+                    import.Span);
                 return;
 
             case BlockStatement block:
@@ -403,6 +411,13 @@ internal sealed class BytecodeCompiler
 
             case NameExpression name:
                 builder.Emit(OpCode.GetVariable, builder.AddName(name.Name), name.Span);
+                return;
+
+            case QualifiedNameExpression qualifiedName:
+                builder.Emit(
+                    OpCode.GetQualifiedMember,
+                    builder.AddName(qualifiedName.QualifiedName),
+                    qualifiedName.Span);
                 return;
 
             case GroupingExpression grouping:

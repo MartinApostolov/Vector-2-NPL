@@ -101,9 +101,13 @@ public sealed class CompilerExpressionTests
     }
 
     [Fact]
-    public void CurrentCompilerStageRejectsImportsAndLaterStatements()
+    public void CurrentCompilerStageCompilesImports()
     {
-        Assert.Throws<NotSupportedException>(() => Compile("import lib.math;"));
+        var compilation = Compile("import lib.math;");
+
+        Assert.Contains(
+            OpCode.Import,
+            compilation.Program.EntryPoint.Instructions.Select(instruction => instruction.OpCode));
     }
 
     private static BytecodeCompilationResult Compile(string source, string? sourceName = null)
