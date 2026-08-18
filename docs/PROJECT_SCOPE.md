@@ -1,6 +1,6 @@
 # Vector Project Scope
 
-**Status:** Required interpreter MVP complete; native-library foundation and Standard Library + Linear Algebra v1 stretch phases complete; later extensions remain planned below.
+**Status:** Required interpreter MVP complete; native-library foundation, Standard Library + Linear Algebra v1, Controlled External C# Plugin Support v1, and Bytecode Compiler and Virtual Machine v1 stretch phases complete; later extensions remain planned below.
 
 ## 1. Project Objective
 
@@ -79,7 +79,7 @@ The repository will include:
 - Lexer and parser tests
 - Interpreter and runtime tests
 - Tests for invalid syntax and runtime failures
-- A focused set of example `.vec` programs (currently 14 entry-point examples)
+- A focused set of example `.vec` programs (currently 15 entry-point examples)
 - A written grammar and language specification
 - Build, run, and usage instructions
 
@@ -264,27 +264,45 @@ remain outside this completed v1 scope.
 
 ### 3.5 Bytecode Compiler and Virtual Machine
 
-An alternative execution backend could compile the AST into custom Vector
-bytecode and run it on a stack-based virtual machine:
+**Bytecode Compiler and Virtual Machine v1 is complete.** Vector now has a second
+execution backend that compiles the existing AST into custom in-memory bytecode and
+executes it on a stack-based VM:
 
 ```text
 Vector source -> Lexer -> Parser -> AST -> Bytecode compiler -> Vector VM -> Result
 ```
 
-This extension could include:
+The completed v1 includes:
 
-- A Vector instruction set and constant table
-- A bytecode compiler
-- A value stack and instruction pointer
-- Global and local variable instructions
-- Conditional and unconditional jumps
-- Function call frames
-- Calls into the same built-in and library interface used by the interpreter
-- A bytecode disassembler for debugging
-- Compatibility tests comparing VM results with the tree-walking interpreter
+- a custom `OpCode : byte` instruction set with constant, name, module, and function pools;
+- source-span/source-file metadata on compiled instructions/chunks;
+- a deterministic human-readable bytecode disassembler;
+- an operand/value stack, explicit instruction pointer, and explicit VM call frames;
+- lexical environments, variables, assignment, shadowing, and enclosing-scope assignment;
+- lists, indexing, indexed mutation, cyclic-list protection, and numeric-list vector operators;
+- conditional/unconditional jumps, short-circuit logic, `if`, `while`, `for`, `break`, and `continue`;
+- compiled function prototypes, parameters, `return`, recursion, mutual recursion, nested
+  functions, escaping closures, and captured mutation;
+- the same global built-ins and native-call boundary used by the interpreter;
+- the same standard native modules and external plugin modules;
+- VM execution of imported local `.vec` modules with normal module caching/conflict/circular-import rules;
+- reusable public `VectorVmEngine` and persistent `VectorVmSession` embedding APIs;
+- CLI/REPL backend selection through `--engine interpreter|vm`;
+- VM-only `--disassemble` mode that compiles/prints bytecode without executing side effects;
+- compatibility/failure tests comparing interpreter and VM results, output, modules, plugins,
+  examples, and source diagnostics.
 
-The tree-walking interpreter will remain the reference implementation while the
-VM is developed.
+The tree-walking interpreter remains the default/reference implementation. Backend
+selection is execution configuration rather than Vector syntax, and both backends target
+the same language semantics.
+
+The v1 bytecode is intentionally in-memory. A serialized `.vbc` format, optimizing/JIT
+compiler, native machine-code generation, bytecode debugger, and indexed local/upvalue
+optimization are not part of this completed phase. Locals and closures currently use the
+existing environment model for semantic correctness; they may later be optimized to slots
+or upvalues without changing Vector-language behavior.
+
+The next major planned stretch goal is Section 3.6, the Visual Studio Community Extension.
 
 ### 3.6 Visual Studio Community Extension
 

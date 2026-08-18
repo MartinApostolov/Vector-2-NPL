@@ -1,6 +1,6 @@
 # Vector Language Specification
 
-**Status:** Vector v1 interpreter and standard-library semantics  
+**Status:** Vector v1 language semantics with interpreter and VM execution backends  
 **Project:** Vector-2-NPL  
 **File extension:** `.vec`  
 **Reference implementation:** C# / .NET 8 tree-walking interpreter
@@ -27,18 +27,19 @@ Vector v1 follows these rules:
 9. Diagnostics preserve structured source information, including the originating
    imported module when an error occurs there.
 10. The tree-walking interpreter is the v1 reference implementation.
+11. The bytecode VM targets the same language semantics; choosing a backend is a
+    host/CLI execution setting, not Vector source syntax.
 
-The execution pipeline is:
+The two execution pipelines are:
 
 ```text
-Vector source
--> Lexer
--> Parser
--> AST
--> Runtime checks
--> Tree-walking interpreter
--> Result
+Vector source -> Lexer -> Parser -> AST -> Tree-walking interpreter -> Result
+Vector source -> Lexer -> Parser -> AST -> Bytecode compiler -> Vector VM -> Result
 ```
+
+The grammar and semantic rules in this document do not change based on the selected
+backend. Bytecode opcodes are an implementation detail and are documented separately
+in `docs/BYTECODE_VM.md`, not in the formal grammar.
 
 ## 2. Source files and encoding
 
@@ -1257,6 +1258,28 @@ standard-library registry, which includes `lib.math`, `lib.collections`, `lib.io
 and `lib.matrix`. The CLI host supplies line input, so `lib.io.readLine()` reads from standard
 input in file mode.
 
+Backend selection is a host/CLI concern. The interpreter remains the default and reference
+implementation:
+
+```powershell
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- program.vec
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- --engine interpreter program.vec
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- --engine vm program.vec
+```
+
+Both backends target the same Vector source semantics, module rules, built-ins, standard
+library, plugin boundary, evaluation order, and structured diagnostic behavior.
+Backend selection does not introduce any Vector keyword, statement, expression, or grammar rule.
+
+The VM backend also supports a compile/disassembly-only CLI mode:
+
+```powershell
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- --engine vm --disassemble program.vec
+```
+
+`--disassemble` requires a source file and `--engine vm`. It parses/compiles and prints
+deterministic bytecode without executing program side effects.
+
 Before the optional source file, the CLI accepts repeated explicit plugin options:
 
 ```powershell
@@ -1277,11 +1300,22 @@ Process exit codes:
 
 ### 16.2 REPL
 
-Launching the CLI without a source file starts the REPL. With no plugins:
+Launching the CLI without a source file starts the REPL. With no explicit backend, it
+uses the interpreter:
 
 ```powershell
 dotnet run --project src/Vector.Cli/Vector.Cli.csproj
 ```
+
+A persistent VM-backed REPL is selected with:
+
+```powershell
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- --engine vm
+```
+
+Each VM REPL submission is parsed and compiled separately, while the VM session reuses
+its top-level lexical environment, module loader, imported modules, functions, closures,
+and module state across successful submissions.
 
 A REPL may also start with one or more explicit trusted plugins:
 
@@ -1312,7 +1346,13 @@ REPL rules:
 - an expression statement whose final value is not `nothing` is displayed;
 - unmatched `(`, `{`, or `[` causes continuation input with the `...> ` prompt;
 - `:exit` and `:quit` exit when entered as a top-level REPL command;
-- module paths resolve relative to the directory from which the REPL was created.
+- module paths resolve relative to the directory from which the REPL was created;
+- the interpreter and VM REPLs follow the same Vector-language rules; differences in
+  bytecode/disassembly are implementation/debugging details rather than language semantics.
+
+The reusable host API follows the same distinction: `VectorEngine` executes with the
+reference interpreter, while `VectorVmEngine` executes with the bytecode VM and can create
+a persistent `VectorVmSession`. Selecting one of these host APIs does not alter Vector syntax.
 
 ## 17. Formal grammar
 

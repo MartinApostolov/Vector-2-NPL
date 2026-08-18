@@ -1,12 +1,15 @@
 # Vector-2-NPL
 
 Vector is a small, formally defined programming language implemented in C#/.NET.
-The current implementation is a tree-walking interpreter built for Sirma Academy —
-Project #2. Vector source is deliberately strict and deterministic; a possible
-natural-language front end is a later direction rather than part of the v1 parser.
+It was built for Sirma Academy — Project #2 and now has two execution backends:
+the original tree-walking interpreter and a custom stack-based bytecode virtual
+machine. The interpreter remains the default and reference implementation.
+Vector source is deliberately strict and deterministic; a possible natural-language
+front end is a later direction rather than part of the v1 parser.
 
 ```text
-Vector source -> Lexer -> Parser -> AST -> Interpreter -> Result
+Vector source -> Lexer -> Parser -> AST -> Interpreter        -> Result
+                                  \-> Bytecode compiler -> VM -> Result
 ```
 
 ## What Vector currently supports
@@ -27,10 +30,16 @@ Vector source -> Lexer -> Parser -> AST -> Interpreter -> Result
 - native standard-library modules: `lib.math`, `lib.collections`, `lib.io`, `lib.vector`, and `lib.matrix`
 - built-ins: `print`, `length`, `concat`, `text`, `number`, `type`, and `range`
 - structured lexer, parser, module, native-call, and runtime diagnostics with source locations
+- a custom in-memory Vector bytecode instruction/chunk model and deterministic disassembler
+- a stack-based VM covering the same current language semantics as the interpreter
+- public `VectorVmEngine` / persistent `VectorVmSession` embedding APIs
+- CLI backend selection with `--engine interpreter|vm` and VM-only `--disassemble`
 - `.vec` command-line execution, repeated CLI `--plugin` options, a reusable embedded plugin runtime, and an interactive REPL
-- automated tests and 15 focused example entry points/programs
+- interpreter/VM compatibility tests plus automated tests and 15 focused example entry points/programs
 
 The formal language rules are in [docs/LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md).
+The bytecode compiler/VM architecture is documented in
+[docs/BYTECODE_VM.md](docs/BYTECODE_VM.md).
 External C# plugin authors should start with [docs/PLUGIN_DEVELOPMENT.md](docs/PLUGIN_DEVELOPMENT.md).
 The academy/project boundaries and future directions are in
 [docs/PROJECT_SCOPE.md](docs/PROJECT_SCOPE.md).
@@ -106,6 +115,41 @@ A multi-file example can be run the same way:
 dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- examples/10_modules/main.vec
 ```
 
+The interpreter is the default/reference backend. It may also be selected explicitly,
+or the same program may be run with the bytecode VM:
+
+```powershell
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- --engine interpreter examples/01_hello.vec
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- --engine vm examples/01_hello.vec
+```
+
+Conceptually, after installing or invoking the built CLI, the equivalent commands are:
+
+```powershell
+vector program.vec
+vector --engine interpreter program.vec
+vector --engine vm program.vec
+```
+
+The main VM CLI forms are:
+
+```powershell
+vector --engine vm program.vec
+vector --engine vm
+vector --engine vm --plugin ExamplePlugin.dll program.vec
+vector --engine vm --disassemble program.vec
+```
+
+To compile a file and print deterministic VM bytecode without executing the
+program's side effects:
+
+```powershell
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- --engine vm --disassemble examples/01_hello.vec
+```
+
+`--disassemble` requires both `--engine vm` and a source file. It parses and compiles
+the file, prints the disassembly, and does not execute the resulting bytecode.
+
 The C#/.NET-backed standard-library examples are runnable through the same CLI path:
 
 ```powershell
@@ -125,6 +169,12 @@ each trusted plugin DLL explicitly. Build the repository example plugin, then lo
 ```powershell
 dotnet build examples/plugins/Vector.ExamplePlugin/Vector.ExamplePlugin.csproj
 dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- --plugin .\examples\plugins\Vector.ExamplePlugin\bin\Debug\net8.0\Vector.ExamplePlugin.dll .\examples\15_external_plugin\main.vec
+```
+
+The same plugin can be used with the VM backend:
+
+```powershell
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- --engine vm --plugin .\examples\plugins\Vector.ExamplePlugin\bin\Debug\net8.0\Vector.ExamplePlugin.dll .\examples\15_external_plugin\main.vec
 ```
 
 Expected output:
@@ -169,11 +219,22 @@ information is available.
 
 ## Use the REPL
 
-Launch the CLI without a source-file argument:
+Launch the CLI without a source-file argument. With no `--engine`, the REPL uses
+the interpreter:
 
 ```powershell
 dotnet run --project src/Vector.Cli/Vector.Cli.csproj
 ```
+
+Start a persistent VM-backed REPL with:
+
+```powershell
+dotnet run --project src/Vector.Cli/Vector.Cli.csproj -- --engine vm
+```
+
+Both REPL backends preserve successful top-level state across submissions. The VM
+REPL compiles each submission separately while reusing its root environment, module
+loader, imported-module state, functions, and closures.
 
 Example session:
 
@@ -502,27 +563,28 @@ or stack traces to Vector code.
 ## Project structure
 
 ```text
-src/Vector.Core/      language front end, runtime, modules, public execution API
+src/Vector.Core/      language front end, interpreter, bytecode compiler/VM, modules, public execution APIs
 src/Vector.Plugins/   external plugin contract, loader, registration manager, embedded runtime
-src/Vector.Cli/       file runner, diagnostic formatting, REPL, explicit `--plugin` loading
-tests/Vector.Tests    automated lexer/parser/runtime/integration/example tests
+src/Vector.Cli/       file runner, backend selection, disassembly, diagnostics, REPL, `--plugin` loading
+tests/Vector.Tests    automated lexer/parser/runtime/VM/compatibility/integration/example tests
 examples/             runnable Vector programs and the copyable `Vector.ExamplePlugin` project
-docs/                 project scope, formal language specification, and plugin developer guide
+docs/                 project scope, language spec, bytecode/VM guide, and plugin developer guide
 ```
 
 ## Future work
 
 The required tree-walking interpreter remains the reference implementation. The
-post-MVP native-library foundation, Standard Library + Linear Algebra v1, and
-**Controlled External C# Plugin Support v1** are implemented.
+post-MVP native-library foundation, **Standard Library + Linear Algebra v1**,
+**Controlled External C# Plugin Support v1**, and **Bytecode Compiler and Virtual
+Machine v1** are implemented.
 
-External plugin support now includes a public versioned contract, transactional module
-registration, explicit DLL loading, plugin-local managed dependency resolution, multiple
-plugins, CLI/REPL `--plugin` startup, embedding support, a real example plugin, and
-integration/failure coverage. Plugins remain trusted in-process .NET extensions rather
-than sandboxed scripts; no directory auto-scan or arbitrary .NET method exposure is
-performed.
+The VM reuses the existing Vector runtime value model, runtime operations, built-ins,
+module loader, standard native modules, and plugin callable boundary. It supports local
+Vector source modules and external plugin modules, has public reusable execution APIs,
+can be selected in the CLI/REPL, and is protected by cross-backend compatibility tests.
+The bytecode representation is deliberately in-memory in v1; there is no persisted
+`.vbc` file format or optimizing/JIT compiler.
 
-The next major planned stretch goal is the custom bytecode compiler and stack-based VM.
-Later goals remain a Visual Studio Community extension, package/dependency management if
-useful, and eventually an inspectable natural-language translation layer.
+The next major planned stretch goal is the **Visual Studio Community Extension**.
+Later goals remain package/dependency management if useful and, last, an inspectable
+natural-language translation layer.
