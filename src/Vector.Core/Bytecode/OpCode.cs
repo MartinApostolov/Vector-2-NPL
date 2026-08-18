@@ -37,6 +37,7 @@ internal enum OpCode : byte
     JumpIfFalse,
     JumpIfTrue,
     MakeClosure,
+    ValidateCall,
     Call,
     Return,
     Import,

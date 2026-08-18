@@ -133,6 +133,7 @@ internal static class BytecodeDisassembler
                 break;
 
             case OpCode.BuildList:
+            case OpCode.ValidateCall:
             case OpCode.Call:
                 builder.Append("; count = ")
                     .Append(operand.ToString(CultureInfo.InvariantCulture));

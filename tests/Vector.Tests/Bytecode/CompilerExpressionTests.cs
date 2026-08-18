@@ -101,10 +101,9 @@ public sealed class CompilerExpressionTests
     }
 
     [Fact]
-    public void CurrentCompilerStageRejectsFunctionsAndLaterStatements()
+    public void CurrentCompilerStageRejectsImportsAndLaterStatements()
     {
-        Assert.Throws<NotSupportedException>(() =>
-            Compile("function identity(value) { return value; }"));
+        Assert.Throws<NotSupportedException>(() => Compile("import lib.math;"));
     }
 
     private static BytecodeCompilationResult Compile(string source, string? sourceName = null)

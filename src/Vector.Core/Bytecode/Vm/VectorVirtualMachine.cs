@@ -1,4 +1,5 @@
 using Vector.Core.Bytecode;
+using Vector.Core.Diagnostics;
 using Vector.Core.Runtime;
 using Vector.Core.Runtime.Values;
 using Vector.Core.Source;
@@ -7,7 +8,7 @@ using RuntimeEnvironment = Vector.Core.Runtime.Environment;
 namespace Vector.Core.Bytecode.Vm;
 
 /// <summary>
-/// Executes Vector bytecode using an operand stack and explicit instruction pointer.
+/// Executes Vector bytecode using an operand stack, explicit instruction pointers, and call frames.
 /// </summary>
 internal sealed class VectorVirtualMachine
 {
@@ -23,17 +24,28 @@ internal sealed class VectorVirtualMachine
     {
         ArgumentNullException.ThrowIfNull(program);
 
-        var chunk = program.EntryPoint;
         var stack = new Stack<VmStackValue>();
-        var environment = new RuntimeEnvironment();
-        var instructionPointer = 0;
+        var frames = new Stack<VmCallFrame>();
+        frames.Push(new VmCallFrame(program.EntryPoint, new RuntimeEnvironment(), stackBase: 0));
+
+        VmCallFrame? activeFrame = null;
 
         try
         {
-            while (instructionPointer < chunk.Instructions.Count)
+            while (frames.Count > 0)
             {
-                var instruction = chunk.Instructions[instructionPointer];
-                instructionPointer++;
+                var frame = frames.Peek();
+                activeFrame = frame;
+                var chunk = frame.Chunk;
+
+                if (frame.InstructionPointer < 0 || frame.InstructionPointer >= chunk.Instructions.Count)
+                {
+                    throw new InvalidOperationException(
+                        "Bytecode execution reached the end of a chunk without Halt or Return.");
+                }
+
+                var instruction = chunk.Instructions[frame.InstructionPointer];
+                frame.InstructionPointer++;
 
                 switch (instruction.OpCode)
                 {
@@ -142,23 +154,23 @@ internal sealed class VectorVirtualMachine
                         break;
 
                     case OpCode.EnterScope:
-                        environment = new RuntimeEnvironment(environment);
+                        frame.Environment = new RuntimeEnvironment(frame.Environment);
                         break;
 
                     case OpCode.ExitScope:
-                        environment = ExitScope(environment);
+                        frame.Environment = ExitScope(frame.Environment);
                         break;
 
                     case OpCode.DeclareVariable:
-                        ExecuteDeclareVariable(chunk, instruction, stack, environment);
+                        ExecuteDeclareVariable(chunk, instruction, stack, frame.Environment);
                         break;
 
                     case OpCode.GetVariable:
-                        ExecuteGetVariable(chunk, instruction, stack, environment);
+                        ExecuteGetVariable(chunk, instruction, stack, frame.Environment);
                         break;
 
                     case OpCode.AssignVariable:
-                        ExecuteAssignVariable(chunk, instruction, stack, environment);
+                        ExecuteAssignVariable(chunk, instruction, stack, frame.Environment);
                         break;
 
                     case OpCode.BuildList:
@@ -190,25 +202,47 @@ internal sealed class VectorVirtualMachine
                         break;
 
                     case OpCode.Jump:
-                        instructionPointer = GetJumpTarget(chunk, instruction);
+                        frame.InstructionPointer = GetJumpTarget(chunk, instruction);
                         break;
 
                     case OpCode.JumpIfFalse:
                         if (PeekBoolean(stack, instruction).Value == false)
                         {
-                            instructionPointer = GetJumpTarget(chunk, instruction);
+                            frame.InstructionPointer = GetJumpTarget(chunk, instruction);
                         }
                         break;
 
                     case OpCode.JumpIfTrue:
                         if (PeekBoolean(stack, instruction).Value)
                         {
-                            instructionPointer = GetJumpTarget(chunk, instruction);
+                            frame.InstructionPointer = GetJumpTarget(chunk, instruction);
                         }
                         break;
 
+                    case OpCode.MakeClosure:
+                        ExecuteMakeClosure(chunk, instruction, stack, frame.Environment);
+                        break;
+
+                    case OpCode.ValidateCall:
+                        ExecuteValidateCall(instruction, stack);
+                        break;
+
+                    case OpCode.Call:
+                        ExecuteCall(instruction, stack, frames);
+                        break;
+
+                    case OpCode.Return:
+                        ExecuteReturn(instruction, stack, frames);
+                        break;
+
                     case OpCode.Halt:
-                        return new VmExecutionResult(FinalResult(stack));
+                        if (frames.Count != 1)
+                        {
+                            throw new InvalidOperationException(
+                                "Only the entry bytecode frame may execute Halt.");
+                        }
+
+                        return new VmExecutionResult(FinalResult(stack, frame.StackBase));
 
                     default:
                         throw new InvalidOperationException(
@@ -216,12 +250,18 @@ internal sealed class VectorVirtualMachine
                 }
             }
         }
-        catch (RuntimeError error) when (chunk.SourceText is not null)
+        catch (RuntimeError error)
         {
-            throw error.WithSource(chunk.SourceName, chunk.SourceText);
+            var sourceFrame = activeFrame;
+            if (sourceFrame is not null && sourceFrame.Chunk.SourceText is string sourceText)
+            {
+                throw error.WithSource(sourceFrame.Chunk.SourceName, sourceText);
+            }
+
+            throw;
         }
 
-        throw new InvalidOperationException("Bytecode execution reached the end of the chunk without Halt.");
+        throw new InvalidOperationException("Bytecode execution ended without a result.");
     }
 
     private static void ExecuteConstant(
@@ -401,11 +441,132 @@ internal sealed class VectorVirtualMachine
         var value = Pop(stack, instruction);
         if (value.Value is not ListValue list)
         {
-            throw new InvalidOperationException(
-                "ListCount requires a list value.");
+            throw new InvalidOperationException("ListCount requires a list value.");
         }
 
         stack.Push(new VmStackValue(new NumberValue(list.Count), instruction.Span));
+    }
+
+    private static void ExecuteMakeClosure(
+        BytecodeChunk chunk,
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack,
+        RuntimeEnvironment environment)
+    {
+        var operand = RequireOperand(instruction);
+        if (operand < 0 || operand >= chunk.Functions.Count)
+        {
+            throw new InvalidOperationException(
+                $"MakeClosure instruction references invalid function pool index {operand}.");
+        }
+
+        stack.Push(new VmStackValue(
+            new BytecodeFunctionValue(chunk.Functions[operand], environment),
+            instruction.Span));
+    }
+
+    private static void ExecuteValidateCall(
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack)
+    {
+        if (stack.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "ValidateCall requires a callee value on the operand stack.");
+        }
+
+        var argumentCount = RequireOperand(instruction);
+        if (argumentCount < 0)
+        {
+            throw new InvalidOperationException("ValidateCall requires a non-negative argument count.");
+        }
+
+        var callee = stack.Peek();
+        if (callee.Value is not BytecodeFunctionValue function)
+        {
+            throw RuntimeOperations.CreateTypeError(
+                $"Only functions can be called, but received {callee.Value.TypeName}.",
+                callee.Span);
+        }
+
+        if (argumentCount != function.Arity)
+        {
+            throw new RuntimeError(
+                DiagnosticCode.ArgumentCountMismatch,
+                $"Function expects {function.Arity} arguments, but received {argumentCount}.",
+                instruction.Span);
+        }
+    }
+
+    private static void ExecuteCall(
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack,
+        Stack<VmCallFrame> frames)
+    {
+        var argumentCount = RequireOperand(instruction);
+        if (argumentCount < 0 || stack.Count < argumentCount + 1)
+        {
+            throw new InvalidOperationException(
+                $"Call requires a callee plus {argumentCount} argument values on the operand stack.");
+        }
+
+        var arguments = new VectorValue[argumentCount];
+        for (var index = argumentCount - 1; index >= 0; index--)
+        {
+            arguments[index] = Pop(stack, instruction).Value;
+        }
+
+        var callee = Pop(stack, instruction);
+        if (callee.Value is not BytecodeFunctionValue function || function.Arity != argumentCount)
+        {
+            throw new InvalidOperationException(
+                "Call requires a BytecodeFunctionValue previously validated by ValidateCall.");
+        }
+
+        var environment = new RuntimeEnvironment(function.Closure);
+        for (var index = 0; index < function.Prototype.Parameters.Count; index++)
+        {
+            environment.Declare(
+                function.Prototype.Parameters[index],
+                arguments[index],
+                function.Prototype.DeclarationSpan);
+        }
+
+        frames.Push(new VmCallFrame(
+            function.Prototype.Chunk,
+            environment,
+            stack.Count,
+            instruction.Span));
+    }
+
+    private static void ExecuteReturn(
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack,
+        Stack<VmCallFrame> frames)
+    {
+        if (frames.Count <= 1)
+        {
+            throw new InvalidOperationException(
+                "Return cannot execute from the entry bytecode frame.");
+        }
+
+        var result = Pop(stack, instruction);
+        var returningFrame = frames.Pop();
+
+        if (stack.Count < returningFrame.StackBase)
+        {
+            throw new InvalidOperationException(
+                "Function return crossed below its operand-stack base.");
+        }
+
+        while (stack.Count > returningFrame.StackBase)
+        {
+            stack.Pop();
+        }
+
+        stack.Push(new VmStackValue(
+            result.Value,
+            returningFrame.CallSpan ?? instruction.Span));
     }
 
     private static int GetJumpTarget(BytecodeChunk chunk, BytecodeInstruction instruction)
@@ -505,17 +666,18 @@ internal sealed class VectorVirtualMachine
         ?? throw new InvalidOperationException(
             $"Opcode '{instruction.OpCode}' requires an operand.");
 
-    private static VectorValue FinalResult(Stack<VmStackValue> stack)
+    private static VectorValue FinalResult(Stack<VmStackValue> stack, int stackBase)
     {
-        if (stack.Count == 0)
+        var resultCount = stack.Count - stackBase;
+        if (resultCount == 0)
         {
             return NothingValue.Instance;
         }
 
-        if (stack.Count != 1)
+        if (resultCount != 1)
         {
             throw new InvalidOperationException(
-                $"Bytecode halted with {stack.Count} values on the operand stack; expected exactly one.");
+                $"Bytecode halted with {resultCount} values above the frame stack base; expected exactly one.");
         }
 
         return stack.Peek().Value;

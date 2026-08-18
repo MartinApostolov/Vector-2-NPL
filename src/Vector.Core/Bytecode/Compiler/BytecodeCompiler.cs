@@ -23,6 +23,8 @@ internal sealed class BytecodeCompiler
     private readonly Stack<LoopCompilationContext> _loopContexts = new();
     private int _scopeDepth;
     private int _hiddenNameCounter;
+    private string? _sourceName;
+    private string? _sourceText;
 
     public BytecodeCompilationResult Compile(
         CompilationUnit compilationUnit,
@@ -34,6 +36,8 @@ internal sealed class BytecodeCompiler
         _loopContexts.Clear();
         _scopeDepth = 0;
         _hiddenNameCounter = 0;
+        _sourceName = sourceName;
+        _sourceText = sourceText;
 
         var builder = new BytecodeBuilder();
 
@@ -83,6 +87,14 @@ internal sealed class BytecodeCompiler
                 CompileIf(conditional, builder);
                 return;
 
+            case FunctionDeclaration function:
+                CompileFunctionDeclaration(function, builder);
+                return;
+
+            case ReturnStatement returnStatement:
+                CompileReturn(returnStatement, builder);
+                return;
+
             case WhileStatement loop:
                 CompileWhile(loop, builder);
                 return;
@@ -125,6 +137,65 @@ internal sealed class BytecodeCompiler
 
         builder.Emit(OpCode.ExitScope, block.Span);
         builder.Emit(OpCode.Nothing, block.Span);
+    }
+
+    private void CompileFunctionDeclaration(FunctionDeclaration declaration, BytecodeBuilder builder)
+    {
+        var prototype = CompileFunctionPrototype(declaration);
+        var functionIndex = builder.AddFunction(prototype);
+
+        // Capture the current environment first, then install the binding into that
+        // same environment. The captured environment object therefore sees the new
+        // binding immediately, which preserves recursive self-lookup semantics.
+        builder.Emit(OpCode.MakeClosure, functionIndex, declaration.Span);
+        builder.Emit(
+            OpCode.DeclareVariable,
+            builder.AddName(declaration.Name),
+            declaration.Span);
+    }
+
+    private BytecodeFunctionPrototype CompileFunctionPrototype(FunctionDeclaration declaration)
+    {
+        var sourceName = _sourceName;
+        var sourceText = _sourceText;
+        var functionCompiler = new BytecodeCompiler
+        {
+            _sourceName = sourceName,
+            _sourceText = sourceText
+        };
+        var builder = new BytecodeBuilder();
+
+        // The VM invocation environment is also the function body's lexical scope,
+        // so do not emit EnterScope/ExitScope around these top-level body statements.
+        foreach (var statement in declaration.Body.Statements)
+        {
+            functionCompiler.CompileStatement(statement, builder);
+            builder.Emit(OpCode.Pop, statement.Span);
+        }
+
+        // Falling off the end of a Vector function is an implicit bare return.
+        builder.Emit(OpCode.Nothing, declaration.Body.Span);
+        builder.Emit(OpCode.Return, declaration.Body.Span);
+
+        return new BytecodeFunctionPrototype(
+            declaration.Name,
+            declaration.Parameters,
+            builder.Build(sourceName, sourceText),
+            declaration.Span);
+    }
+
+    private void CompileReturn(ReturnStatement statement, BytecodeBuilder builder)
+    {
+        if (statement.Expression is null)
+        {
+            builder.Emit(OpCode.Nothing, statement.Span);
+        }
+        else
+        {
+            CompileExpression(statement.Expression, builder);
+        }
+
+        builder.Emit(OpCode.Return, statement.Span);
     }
 
     private void CompileIf(IfStatement conditional, BytecodeBuilder builder)
@@ -351,6 +422,10 @@ internal sealed class BytecodeCompiler
                 CompileAssignment(assignment, builder);
                 return;
 
+            case CallExpression call:
+                CompileCall(call, builder);
+                return;
+
             default:
                 throw new NotSupportedException(
                     $"Expression type '{expression.GetType().Name}' is not supported by the current bytecode compiler stage.");
@@ -431,6 +506,22 @@ internal sealed class BytecodeCompiler
 
         throw new InvalidOperationException(
             $"Assignment target type '{assignment.Target.GetType().Name}' is not supported.");
+    }
+
+    private void CompileCall(CallExpression call, BytecodeBuilder builder)
+    {
+        // Match the interpreter exactly: evaluate the callee first, validate that it
+        // is callable and has the requested arity, then evaluate arguments left-to-right.
+        // This prevents wrong-arity calls from partially performing argument side effects.
+        CompileExpression(call.Callee, builder);
+        builder.Emit(OpCode.ValidateCall, call.Arguments.Count, call.Span);
+
+        foreach (var argument in call.Arguments)
+        {
+            CompileExpression(argument, builder);
+        }
+
+        builder.Emit(OpCode.Call, call.Arguments.Count, call.Span);
     }
 
     private void CompileBinary(BinaryExpression binary, BytecodeBuilder builder)
