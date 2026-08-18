@@ -42,6 +42,29 @@ public sealed class BuiltinTests
     }
 
     [Fact]
+    public void BuiltinRegistryCreatesTheCompleteSharedBuiltinSetForAHost()
+    {
+        var output = new List<string>();
+        var host = new VectorHost(output.Add);
+        var builtins = BuiltinRegistry.Create(host);
+
+        Assert.Equal(7, builtins.Count);
+        Assert.IsType<PrintBuiltin>(builtins["print"]);
+        Assert.IsType<LengthBuiltin>(builtins["length"]);
+        Assert.IsType<ConcatBuiltin>(builtins["concat"]);
+        Assert.IsType<TextBuiltin>(builtins["text"]);
+        Assert.IsType<NumberBuiltin>(builtins["number"]);
+        Assert.IsType<TypeBuiltin>(builtins["type"]);
+        Assert.IsType<RangeBuiltin>(builtins["range"]);
+
+        var interpreter = new Interpreter(host: host);
+        var print = Assert.IsType<PrintBuiltin>(builtins["print"]);
+        print.Call(interpreter, new VectorValue[] { new NumberValue(42) });
+
+        Assert.Equal(new[] { "42" }, output);
+    }
+
+    [Fact]
     public void PrintIsAvailableAsRequiredGlobalBuiltin()
     {
         var value = Evaluate("print");

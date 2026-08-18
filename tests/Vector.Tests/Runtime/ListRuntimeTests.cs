@@ -81,6 +81,18 @@ public sealed class ListRuntimeTests
         Assert.Equal(new NumberValue(1), environment.Get("x", Span(0, 1)));
     }
 
+    [Fact]
+    public void InvalidIndexTargetIsRejectedBeforeIndexExpressionSideEffects()
+    {
+        var environment = new RuntimeEnvironment();
+        environment.Declare("i", new NumberValue(0), Span(0, 1));
+
+        var error = Assert.Throws<RuntimeError>(() => Evaluate("5[(i = 1)]", environment));
+
+        Assert.Equal(DiagnosticCode.RuntimeTypeError, error.Code);
+        Assert.Equal(new NumberValue(0), environment.Get("i", Span(0, 1)));
+    }
+
     [Theory]
     [InlineData("[1][\"0\"]")]
     [InlineData("[1][true]")]
