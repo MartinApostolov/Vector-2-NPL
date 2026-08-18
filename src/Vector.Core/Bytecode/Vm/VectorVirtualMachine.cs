@@ -11,6 +11,9 @@ namespace Vector.Core.Bytecode.Vm;
 /// </summary>
 internal sealed class VectorVirtualMachine
 {
+    private const int IndexListRequirement = 0;
+    private const int IndexedAssignmentListRequirement = 1;
+
     public VmExecutionResult Execute(BytecodeProgram program)
     {
         ArgumentNullException.ThrowIfNull(program);
@@ -153,6 +156,22 @@ internal sealed class VectorVirtualMachine
                         ExecuteAssignVariable(chunk, instruction, stack, environment);
                         break;
 
+                    case OpCode.BuildList:
+                        ExecuteBuildList(instruction, stack);
+                        break;
+
+                    case OpCode.RequireList:
+                        ExecuteRequireList(instruction, stack);
+                        break;
+
+                    case OpCode.GetIndex:
+                        ExecuteGetIndex(instruction, stack);
+                        break;
+
+                    case OpCode.SetIndex:
+                        ExecuteSetIndex(instruction, stack);
+                        break;
+
                     case OpCode.Halt:
                         return new VmExecutionResult(FinalResult(stack));
 
@@ -216,6 +235,89 @@ internal sealed class VectorVirtualMachine
         var name = GetName(chunk, instruction);
         var value = Pop(stack, instruction);
         environment.Assign(name, value.Value, instruction.Span);
+    }
+
+    private static void ExecuteBuildList(
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack)
+    {
+        var count = RequireOperand(instruction);
+        if (count < 0)
+        {
+            throw new InvalidOperationException("BuildList requires a non-negative element count.");
+        }
+
+        if (stack.Count < count)
+        {
+            throw new InvalidOperationException(
+                $"Operand stack contains {stack.Count} values, but BuildList requires {count}.");
+        }
+
+        var elements = new VectorValue[count];
+        for (var index = count - 1; index >= 0; index--)
+        {
+            elements[index] = Pop(stack, instruction).Value;
+        }
+
+        stack.Push(new VmStackValue(new ListValue(elements), instruction.Span));
+    }
+
+    private static void ExecuteRequireList(
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack)
+    {
+        if (stack.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Operand stack underflow while executing '{instruction.OpCode}'.");
+        }
+
+        var target = stack.Peek();
+        var operation = RequireOperand(instruction) switch
+        {
+            IndexListRequirement => "Indexing requires a list target",
+            IndexedAssignmentListRequirement => "Indexed assignment requires a list target",
+            var requirement => throw new InvalidOperationException(
+                $"RequireList has unknown requirement kind {requirement}.")
+        };
+
+        RuntimeOperations.RequireList(target.Value, target.Span, operation);
+    }
+
+    private static void ExecuteGetIndex(
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack)
+    {
+        var index = Pop(stack, instruction);
+        var target = Pop(stack, instruction);
+        var list = RuntimeOperations.RequireList(
+            target.Value,
+            target.Span,
+            "Indexing requires a list target");
+
+        var value = RuntimeOperations.GetIndex(list, index.Value, index.Span);
+        stack.Push(new VmStackValue(value, instruction.Span));
+    }
+
+    private static void ExecuteSetIndex(
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack)
+    {
+        var index = Pop(stack, instruction);
+        var target = Pop(stack, instruction);
+        var value = Pop(stack, instruction);
+        var list = RuntimeOperations.RequireList(
+            target.Value,
+            target.Span,
+            "Indexed assignment requires a list target");
+
+        var result = RuntimeOperations.SetIndex(
+            list,
+            index.Value,
+            index.Span,
+            value.Value,
+            instruction.Span);
+        stack.Push(new VmStackValue(result, instruction.Span));
     }
 
     private static RuntimeEnvironment ExitScope(RuntimeEnvironment environment)

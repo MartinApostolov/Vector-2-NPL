@@ -12,6 +12,9 @@ namespace Vector.Core.Bytecode.Compiler;
 /// </summary>
 internal sealed class BytecodeCompiler
 {
+    private const int IndexListRequirement = 0;
+    private const int IndexedAssignmentListRequirement = 1;
+
     public BytecodeCompilationResult Compile(
         CompilationUnit compilationUnit,
         string? sourceName = null,
@@ -91,6 +94,14 @@ internal sealed class BytecodeCompiler
                 CompileLiteral(literal, builder);
                 return;
 
+            case ListExpression list:
+                CompileList(list, builder);
+                return;
+
+            case IndexExpression index:
+                CompileIndex(index, builder);
+                return;
+
             case NameExpression name:
                 builder.Emit(OpCode.GetVariable, builder.AddName(name.Name), name.Span);
                 return;
@@ -139,23 +150,59 @@ internal sealed class BytecodeCompiler
         builder.Emit(OpCode.Constant, constantIndex, literal.Span);
     }
 
-    private static void CompileAssignment(AssignmentExpression assignment, BytecodeBuilder builder)
+    private static void CompileList(ListExpression list, BytecodeBuilder builder)
     {
-        if (assignment.Target is not NameExpression name)
+        foreach (var element in list.Elements)
         {
-            throw new NotSupportedException(
-                "Only variable assignment is supported by the current bytecode compiler stage; indexed assignment is added later.");
+            CompileExpression(element, builder);
         }
 
-        // Preserve interpreter semantics: evaluate the right-hand side before changing
-        // or validating the target binding.
-        CompileExpression(assignment.Value, builder);
-        var nameIndex = builder.AddName(name.Name);
-        builder.Emit(OpCode.AssignVariable, nameIndex, name.Span);
+        builder.Emit(OpCode.BuildList, list.Elements.Count, list.Span);
+    }
 
-        // Re-read the assigned binding so the expression result carries the full
-        // assignment span while undefined-target diagnostics still point at the target name.
-        builder.Emit(OpCode.GetVariable, nameIndex, assignment.Span);
+    private static void CompileIndex(IndexExpression index, BytecodeBuilder builder)
+    {
+        // Match the interpreter: evaluate and validate the target before evaluating
+        // the index expression so an invalid target prevents index side effects.
+        CompileExpression(index.Target, builder);
+        builder.Emit(OpCode.RequireList, IndexListRequirement, index.Target.Span);
+        CompileExpression(index.Index, builder);
+        builder.Emit(OpCode.GetIndex, index.Span);
+    }
+
+    private static void CompileAssignment(AssignmentExpression assignment, BytecodeBuilder builder)
+    {
+        // Assignment is right-associative. Preserve the interpreter rule that the
+        // right-hand side is evaluated before either assignment target is changed.
+        CompileExpression(assignment.Value, builder);
+
+        if (assignment.Target is NameExpression name)
+        {
+            var nameIndex = builder.AddName(name.Name);
+            builder.Emit(OpCode.AssignVariable, nameIndex, name.Span);
+
+            // Re-read the assigned binding so the expression result carries the full
+            // assignment span while undefined-target diagnostics still point at the target name.
+            builder.Emit(OpCode.GetVariable, nameIndex, assignment.Span);
+            return;
+        }
+
+        if (assignment.Target is IndexExpression index)
+        {
+            // The target expression follows the RHS, but it must be validated before
+            // the index expression runs, matching interpreter failure/side-effect order.
+            CompileExpression(index.Target, builder);
+            builder.Emit(
+                OpCode.RequireList,
+                IndexedAssignmentListRequirement,
+                index.Target.Span);
+            CompileExpression(index.Index, builder);
+            builder.Emit(OpCode.SetIndex, assignment.Span);
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Assignment target type '{assignment.Target.GetType().Name}' is not supported.");
     }
 
     private static void CompileBinary(BinaryExpression binary, BytecodeBuilder builder)

@@ -27,6 +27,7 @@ internal enum OpCode : byte
     GetVariable,
     AssignVariable,
     BuildList,
+    RequireList,
     GetIndex,
     SetIndex,
     SnapshotList,
