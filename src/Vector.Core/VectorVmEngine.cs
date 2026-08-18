@@ -118,6 +118,15 @@ public sealed class VectorVmEngine
         }
     }
 
+    /// <summary>
+    /// Creates a persistent VM session that reuses one lexical environment and module loader
+    /// across multiple separately compiled source submissions.
+    /// </summary>
+    public VectorVmSession CreateSession(
+        string? programRoot = null,
+        IVectorHost? host = null) =>
+        new(this, programRoot, host);
+
     private static IVectorHost CreateExecutionHost(List<string> output, IVectorHost? forward) =>
         forward is IVectorInputHost inputHost
             ? new CapturingInputHost(output, inputHost)

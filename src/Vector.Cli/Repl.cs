@@ -1,3 +1,4 @@
+using Vector.Core;
 using Vector.Core.Diagnostics;
 using Vector.Core.Lexing;
 using Vector.Core.Modules;
@@ -8,6 +9,7 @@ using Vector.Core.Runtime.Host;
 using Vector.Core.Runtime.Values;
 using Vector.Core.Source;
 using Vector.Core.StandardLibrary;
+using Vector.Core.Syntax;
 using Vector.Core.Syntax.Statements;
 
 namespace Vector.Cli;
@@ -24,7 +26,9 @@ public sealed class Repl
     private readonly TextReader _input;
     private readonly TextWriter _output;
     private readonly TextWriter _error;
-    private readonly Interpreter _interpreter;
+    private readonly CliExecutionEngine _executionEngine;
+    private readonly Interpreter? _interpreter;
+    private readonly VectorVmSession? _vmSession;
 
     public Repl(
         TextReader? input = null,
@@ -32,20 +36,56 @@ public sealed class Repl
         TextWriter? error = null,
         string? programRoot = null,
         NativeModuleRegistry? nativeModules = null)
+        : this(
+            input,
+            output,
+            error,
+            programRoot,
+            nativeModules,
+            CliExecutionEngine.Interpreter)
+    {
+    }
+
+    internal Repl(
+        TextReader? input,
+        TextWriter? output,
+        TextWriter? error,
+        string? programRoot,
+        NativeModuleRegistry? nativeModules,
+        CliExecutionEngine executionEngine)
     {
         _input = input ?? Console.In;
         _output = output ?? Console.Out;
         _error = error ?? Console.Error;
+        _executionEngine = executionEngine;
 
         var root = string.IsNullOrWhiteSpace(programRoot)
             ? Directory.GetCurrentDirectory()
             : Path.GetFullPath(programRoot);
-        var moduleLoader = new ModuleLoader(
-            new ModuleResolver(root),
-            nativeModules ?? StandardLibraryRegistry.CreateDefault());
-        _interpreter = new Interpreter(
-            host: new VectorInputHost(_output.WriteLine, _input.ReadLine),
-            moduleLoader: moduleLoader);
+        var moduleRegistry = nativeModules ?? StandardLibraryRegistry.CreateDefault();
+        var host = new VectorInputHost(_output.WriteLine, _input.ReadLine);
+
+        switch (executionEngine)
+        {
+            case CliExecutionEngine.Interpreter:
+            {
+                var moduleLoader = new ModuleLoader(
+                    new ModuleResolver(root),
+                    moduleRegistry);
+                _interpreter = new Interpreter(host: host, moduleLoader: moduleLoader);
+                break;
+            }
+
+            case CliExecutionEngine.Vm:
+                _vmSession = new VectorVmEngine(moduleRegistry).CreateSession(root, host);
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(
+                    nameof(executionEngine),
+                    executionEngine,
+                    "Unknown Vector REPL execution engine.");
+        }
     }
 
     public int Run()
@@ -112,14 +152,23 @@ public sealed class Repl
             return;
         }
 
+        if (_executionEngine == CliExecutionEngine.Vm)
+        {
+            var result = _vmSession!.Execute(source, ReplSourceName);
+            if (!result.Success)
+            {
+                WriteDiagnostics(result.Diagnostics, source);
+                return;
+            }
+
+            WriteExpressionResultIfNeeded(parseResult.Root.Statements.LastOrDefault(), result.Result);
+            return;
+        }
+
         try
         {
-            var value = _interpreter.Execute(parseResult.Root, ReplSourceName, source);
-            if (parseResult.Root.Statements.LastOrDefault() is ExpressionStatement
-                && value is not NothingValue)
-            {
-                _output.WriteLine(VectorValueFormatter.Format(value));
-            }
+            var value = _interpreter!.Execute(parseResult.Root, ReplSourceName, source);
+            WriteExpressionResultIfNeeded(parseResult.Root.Statements.LastOrDefault(), value);
         }
         catch (RuntimeError runtimeError)
         {
@@ -136,6 +185,16 @@ public sealed class Repl
         catch (ModuleLoadException moduleError)
         {
             WriteModuleError(moduleError, source);
+        }
+    }
+
+    private void WriteExpressionResultIfNeeded(StatementSyntax? statement, VectorValue? value)
+    {
+        if (statement is ExpressionStatement
+            && value is not null
+            && value is not NothingValue)
+        {
+            _output.WriteLine(VectorValueFormatter.Format(value));
         }
     }
 
@@ -227,5 +286,4 @@ public sealed class Repl
             }
         }
     }
-
 }

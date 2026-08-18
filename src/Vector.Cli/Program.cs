@@ -10,7 +10,8 @@ internal static class Program
     private const int SuccessExitCode = 0;
     private const int LanguageFailureExitCode = 1;
     private const int CommandLineFailureExitCode = 2;
-    private const string Usage = "Usage: vector [--plugin plugin.dll]... [file.vec]";
+    private const string Usage =
+        "Usage: vector [--engine interpreter|vm] [--disassemble] [--plugin plugin.dll]... [file.vec]";
 
     public static int Main(string[] args) =>
         Run(args, Console.In, Console.Out, Console.Error);
@@ -66,7 +67,9 @@ internal static class Program
                 input,
                 output,
                 error,
-                nativeModules: runtime.NativeModules).Run();
+                programRoot: null,
+                nativeModules: runtime.NativeModules,
+                executionEngine: options.Engine).Run();
         }
 
         string filePath;
@@ -102,9 +105,31 @@ internal static class Program
             return CommandLineFailureExitCode;
         }
 
+        if (options.Disassemble)
+        {
+            var compilation = runtime.VmEngine.Compile(source, filePath);
+            if (compilation.Success)
+            {
+                output.Write(compilation.Disassembly);
+                return SuccessExitCode;
+            }
+
+            foreach (var diagnostic in compilation.Diagnostics)
+            {
+                error.WriteLine(CliDiagnosticFormatter.Format(diagnostic, filePath, source));
+            }
+
+            return LanguageFailureExitCode;
+        }
+
         var programRoot = Path.GetDirectoryName(filePath) ?? Directory.GetCurrentDirectory();
         var host = new VectorInputHost(output.WriteLine, input.ReadLine);
-        var result = runtime.Execute(source, programRoot, host);
+        var result = options.Engine switch
+        {
+            CliExecutionEngine.Interpreter => runtime.Execute(source, programRoot, host),
+            CliExecutionEngine.Vm => runtime.ExecuteVm(source, programRoot, host),
+            _ => throw new InvalidOperationException($"Unsupported execution engine '{options.Engine}'.")
+        };
 
         if (result.Success)
         {
