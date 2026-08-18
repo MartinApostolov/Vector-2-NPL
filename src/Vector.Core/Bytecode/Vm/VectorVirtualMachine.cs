@@ -13,6 +13,9 @@ internal sealed class VectorVirtualMachine
 {
     private const int IndexListRequirement = 0;
     private const int IndexedAssignmentListRequirement = 1;
+    private const int IfBooleanRequirement = 0;
+    private const int AndBooleanRequirement = 1;
+    private const int OrBooleanRequirement = 2;
 
     public VmExecutionResult Execute(BytecodeProgram program)
     {
@@ -164,12 +167,34 @@ internal sealed class VectorVirtualMachine
                         ExecuteRequireList(instruction, stack);
                         break;
 
+                    case OpCode.RequireBoolean:
+                        ExecuteRequireBoolean(instruction, stack);
+                        break;
+
                     case OpCode.GetIndex:
                         ExecuteGetIndex(instruction, stack);
                         break;
 
                     case OpCode.SetIndex:
                         ExecuteSetIndex(instruction, stack);
+                        break;
+
+                    case OpCode.Jump:
+                        instructionPointer = GetJumpTarget(chunk, instruction);
+                        break;
+
+                    case OpCode.JumpIfFalse:
+                        if (PeekBoolean(stack, instruction).Value == false)
+                        {
+                            instructionPointer = GetJumpTarget(chunk, instruction);
+                        }
+                        break;
+
+                    case OpCode.JumpIfTrue:
+                        if (PeekBoolean(stack, instruction).Value)
+                        {
+                            instructionPointer = GetJumpTarget(chunk, instruction);
+                        }
                         break;
 
                     case OpCode.Halt:
@@ -284,6 +309,29 @@ internal sealed class VectorVirtualMachine
         RuntimeOperations.RequireList(target.Value, target.Span, operation);
     }
 
+    private static void ExecuteRequireBoolean(
+        BytecodeInstruction instruction,
+        Stack<VmStackValue> stack)
+    {
+        if (stack.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Operand stack underflow while executing '{instruction.OpCode}'.");
+        }
+
+        var value = stack.Peek();
+        var operation = RequireOperand(instruction) switch
+        {
+            IfBooleanRequirement => "An 'if' condition must be a boolean",
+            AndBooleanRequirement => "'and' requires boolean operands",
+            OrBooleanRequirement => "'or' requires boolean operands",
+            var requirement => throw new InvalidOperationException(
+                $"RequireBoolean has unknown requirement kind {requirement}.")
+        };
+
+        RuntimeOperations.RequireBoolean(value.Value, instruction.Span, operation);
+    }
+
     private static void ExecuteGetIndex(
         BytecodeInstruction instruction,
         Stack<VmStackValue> stack)
@@ -318,6 +366,33 @@ internal sealed class VectorVirtualMachine
             value.Value,
             instruction.Span);
         stack.Push(new VmStackValue(result, instruction.Span));
+    }
+
+    private static int GetJumpTarget(BytecodeChunk chunk, BytecodeInstruction instruction)
+    {
+        var target = RequireOperand(instruction);
+        if (target < 0 || target > chunk.Instructions.Count)
+        {
+            throw new InvalidOperationException(
+                $"{instruction.OpCode} instruction references invalid jump target {target}.");
+        }
+
+        return target;
+    }
+
+    private static BooleanValue PeekBoolean(
+        Stack<VmStackValue> stack,
+        BytecodeInstruction instruction)
+    {
+        if (stack.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Operand stack underflow while executing '{instruction.OpCode}'.");
+        }
+
+        return stack.Peek().Value as BooleanValue
+            ?? throw new InvalidOperationException(
+                $"Opcode '{instruction.OpCode}' requires a validated boolean value on the operand stack.");
     }
 
     private static RuntimeEnvironment ExitScope(RuntimeEnvironment environment)

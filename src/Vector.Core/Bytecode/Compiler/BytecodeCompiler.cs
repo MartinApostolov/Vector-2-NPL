@@ -14,6 +14,9 @@ internal sealed class BytecodeCompiler
 {
     private const int IndexListRequirement = 0;
     private const int IndexedAssignmentListRequirement = 1;
+    private const int IfBooleanRequirement = 0;
+    private const int AndBooleanRequirement = 1;
+    private const int OrBooleanRequirement = 2;
 
     public BytecodeCompilationResult Compile(
         CompilationUnit compilationUnit,
@@ -66,6 +69,10 @@ internal sealed class BytecodeCompiler
                 CompileBlock(block, builder);
                 return;
 
+            case IfStatement conditional:
+                CompileIf(conditional, builder);
+                return;
+
             default:
                 throw new NotSupportedException(
                     $"Statement type '{statement.GetType().Name}' is not supported by the current bytecode compiler stage.");
@@ -84,6 +91,35 @@ internal sealed class BytecodeCompiler
 
         builder.Emit(OpCode.ExitScope, block.Span);
         builder.Emit(OpCode.Nothing, block.Span);
+    }
+
+    private static void CompileIf(IfStatement conditional, BytecodeBuilder builder)
+    {
+        CompileExpression(conditional.Condition, builder);
+        builder.Emit(OpCode.RequireBoolean, IfBooleanRequirement, conditional.Condition.Span);
+
+        var falseJump = builder.EmitJump(OpCode.JumpIfFalse, conditional.Condition.Span);
+
+        // The conditional jump inspects but does not consume its value. Remove the
+        // true condition before executing the selected branch.
+        builder.Emit(OpCode.Pop, conditional.Condition.Span);
+        CompileStatement(conditional.ThenBranch, builder);
+        var endJump = builder.EmitJump(OpCode.Jump, conditional.Span);
+
+        builder.PatchJumpToCurrent(falseJump);
+
+        // False conditions arrive here still on the operand stack.
+        builder.Emit(OpCode.Pop, conditional.Condition.Span);
+        if (conditional.ElseBranch is not null)
+        {
+            CompileStatement(conditional.ElseBranch, builder);
+        }
+        else
+        {
+            builder.Emit(OpCode.Nothing, conditional.Span);
+        }
+
+        builder.PatchJumpToCurrent(endJump);
     }
 
     private static void CompileExpression(ExpressionSyntax expression, BytecodeBuilder builder)
@@ -207,16 +243,50 @@ internal sealed class BytecodeCompiler
 
     private static void CompileBinary(BinaryExpression binary, BytecodeBuilder builder)
     {
-        if (binary.OperatorToken.Kind is TokenKind.AndKeyword or TokenKind.OrKeyword)
+        if (binary.OperatorToken.Kind == TokenKind.AndKeyword)
         {
-            throw new NotSupportedException(
-                "Short-circuit logical expressions require jump bytecode and are implemented in a later compiler stage.");
+            CompileShortCircuitLogical(
+                binary,
+                builder,
+                OpCode.JumpIfFalse,
+                AndBooleanRequirement);
+            return;
+        }
+
+        if (binary.OperatorToken.Kind == TokenKind.OrKeyword)
+        {
+            CompileShortCircuitLogical(
+                binary,
+                builder,
+                OpCode.JumpIfTrue,
+                OrBooleanRequirement);
+            return;
         }
 
         // Preserve the interpreter's left-to-right evaluation order.
         CompileExpression(binary.Left, builder);
         CompileExpression(binary.Right, builder);
         builder.Emit(MapBinaryOperator(binary.OperatorToken.Kind), binary.Span);
+    }
+
+    private static void CompileShortCircuitLogical(
+        BinaryExpression binary,
+        BytecodeBuilder builder,
+        OpCode shortCircuitJump,
+        int booleanRequirement)
+    {
+        CompileExpression(binary.Left, builder);
+        builder.Emit(OpCode.RequireBoolean, booleanRequirement, binary.Left.Span);
+
+        var endJump = builder.EmitJump(shortCircuitJump, binary.Left.Span);
+
+        // When the left operand does not short-circuit, discard it and leave only
+        // the validated right operand as the expression result.
+        builder.Emit(OpCode.Pop, binary.Left.Span);
+        CompileExpression(binary.Right, builder);
+        builder.Emit(OpCode.RequireBoolean, booleanRequirement, binary.Right.Span);
+
+        builder.PatchJumpToCurrent(endJump);
     }
 
     private static OpCode MapUnaryOperator(TokenKind kind) =>
