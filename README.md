@@ -37,6 +37,8 @@ Vector source -> Lexer -> Parser -> AST -> Interpreter        -> Result
 - `.vec` command-line execution, repeated CLI `--plugin` options, a reusable embedded plugin runtime, and an interactive REPL
 - interpreter/VM compatibility tests plus automated tests and 15 focused example entry points/programs
 
+The whole-project architecture is summarized in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 The formal language rules are in [docs/LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md).
 The bytecode compiler/VM architecture is documented in
 [docs/BYTECODE_VM.md](docs/BYTECODE_VM.md).
@@ -57,10 +59,10 @@ Optional development environment:
 
 - Visual Studio 2022 with .NET 8 development support
 
-No external runtime service, database, package manager for Vector code, or external
-native library is required. Vector's current native standard library is compiled into
-the runtime and uses .NET APIs internally. NuGet restore is needed for the xUnit test
-dependencies.
+No external runtime service, package manager for Vector code, or external native
+library is required. **No database, seed data, API keys, accounts, or credentials are
+required.** Vector's current native standard library is compiled into the runtime and
+uses .NET APIs internally. NuGet restore is needed for the xUnit test dependencies.
 
 Check the installed SDK with:
 
@@ -568,7 +570,7 @@ src/Vector.Plugins/   external plugin contract, loader, registration manager, em
 src/Vector.Cli/       file runner, backend selection, disassembly, diagnostics, REPL, `--plugin` loading
 tests/Vector.Tests    automated lexer/parser/runtime/VM/compatibility/integration/example tests
 examples/             runnable Vector programs and the copyable `Vector.ExamplePlugin` project
-docs/                 project scope, language spec, bytecode/VM guide, and plugin developer guide
+docs/                 architecture overview, project scope, language spec, bytecode/VM guide, and plugin developer guide
 ```
 
 ## Future work
@@ -585,6 +587,6 @@ can be selected in the CLI/REPL, and is protected by cross-backend compatibility
 The bytecode representation is deliberately in-memory in v1; there is no persisted
 `.vbc` file format or optimizing/JIT compiler.
 
-The next major planned stretch goal is the **Visual Studio Community Extension**.
+The next major future stretch goal is the **Visual Studio Community Extension**.
 Later goals remain package/dependency management if useful and, last, an inspectable
 natural-language translation layer.

@@ -2,6 +2,23 @@
 
 **Status:** Required interpreter MVP complete; native-library foundation, Standard Library + Linear Algebra v1, Controlled External C# Plugin Support v1, and Bytecode Compiler and Virtual Machine v1 stretch phases complete; later extensions remain planned below.
 
+### Final submission status
+
+**Complete:**
+
+- Required interpreter MVP
+- Library/native-module foundation
+- Standard-library foundation
+- Vector/matrix functionality
+- External C# plugin support
+- Bytecode compiler and VM
+
+**Future:**
+
+- Visual Studio Community extension
+- Package/dependency management if useful
+- Experimental natural-language translation
+
 ## 1. Project Objective
 
 The objective of Vector is to design a small programming language and build a
@@ -302,7 +319,7 @@ optimization are not part of this completed phase. Locals and closures currently
 existing environment model for semantic correctness; they may later be optimized to slots
 or upvalues without changing Vector-language behavior.
 
-The next major planned stretch goal is Section 3.6, the Visual Studio Community Extension.
+The next major future stretch goal would be Section 3.6, the Visual Studio Community Extension.
 
 ### 3.6 Visual Studio Community Extension
 
@@ -420,14 +437,14 @@ The required interpreter MVP is complete. Post-MVP status and remaining priority
    `lib.vector` and `lib.matrix`.
 5. **Complete:** controlled external C# plugin support using the proven native
    library interface, explicit trusted DLL loading, and versioned registration.
-6. **Next:** build the bytecode compiler and stack-based virtual machine against the same
-   runtime values, callable contracts, and library boundary.
-7. Build the Visual Studio Community extension on top of the stable language,
-   diagnostics, runtime, and library metadata.
-8. Add package/dependency management if the external library ecosystem makes it
-   useful.
-9. Prototype experimental natural-language translation last, targeting the
-   formal Vector language and its established libraries.
+6. **Complete:** bytecode compiler and stack-based virtual machine using the same
+   runtime values, callable contracts, module system, and library boundary.
+7. **Future:** build the Visual Studio Community extension on top of the stable
+   language, diagnostics, runtime, and library metadata.
+8. **Future:** add package/dependency management if the external library ecosystem
+   makes it useful.
+9. **Future:** prototype experimental natural-language translation last, targeting
+   the formal Vector language and its established libraries.
 
 The exact size of each stretch goal should still be reconsidered against
 remaining project time and academy expectations. The project is already
