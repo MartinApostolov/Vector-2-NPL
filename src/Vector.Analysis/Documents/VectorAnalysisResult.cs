@@ -2,6 +2,7 @@ namespace Vector.Analysis.Documents;
 
 using Vector.Core.Diagnostics;
 using Vector.Core.Syntax;
+using Vector.Analysis.Scopes;
 
 public sealed class VectorAnalysisResult
 {
@@ -15,11 +16,14 @@ public sealed class VectorAnalysisResult
         this.Document = document;
         this.Syntax = syntax;
         this.diagnostics = diagnostics.ToArray();
+        this.SemanticModel = VectorScopeBuilder.Build(document, syntax);
     }
 
     public VectorDocumentSnapshot Document { get; }
 
     public CompilationUnit Syntax { get; }
+
+    public VectorSemanticModel SemanticModel { get; }
 
     public IReadOnlyList<Diagnostic> Diagnostics => this.diagnostics;
 

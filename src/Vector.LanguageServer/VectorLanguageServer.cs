@@ -66,6 +66,7 @@ public sealed class VectorLanguageServer
                 },
                 CompletionProvider = new CompletionOptions { TriggerCharacters = ["."] },
                 HoverProvider = true,
+                DocumentSymbolProvider = true,
             },
             ServerInfo = new VectorServerInfo
             {
@@ -145,6 +146,8 @@ public sealed class VectorLanguageServer
                     VectorCatalogItemKind.Keyword => CompletionItemKind.Keyword,
                     VectorCatalogItemKind.Module => CompletionItemKind.Module,
                     VectorCatalogItemKind.Constant => CompletionItemKind.Constant,
+                    VectorCatalogItemKind.Variable => CompletionItemKind.Variable,
+                    VectorCatalogItemKind.Parameter => CompletionItemKind.Variable,
                     _ => CompletionItemKind.Function,
                 },
                 Detail = item.Detail,
@@ -152,6 +155,29 @@ public sealed class VectorLanguageServer
                 InsertText = item.Label,
             }).ToArray();
         return Task.FromResult(items);
+    }
+
+    [JsonRpcMethod(Methods.TextDocumentDocumentSymbolName, UseSingleObjectParameterDeserialization = true)]
+    public Task<DocumentSymbol[]> DocumentSymbolsAsync(
+        DocumentSymbolParams parameters,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        this.RequireState(ServerLifecycleState.Initialized, Methods.TextDocumentDocumentSymbolName);
+        if (!this.documents.TryGetDocument(parameters.TextDocument.Uri, out VectorAnalysisResult? analysis)
+            || analysis is null)
+        {
+            return Task.FromResult(Array.Empty<DocumentSymbol>());
+        }
+
+        DocumentSymbol[] symbols = analysis.SemanticModel.Symbols
+            .Where(symbol => !symbol.IsSynthetic
+                && symbol.ContainingSymbol is null
+                && symbol.Kind is not Vector.Analysis.Symbols.VectorSymbolKind.Parameter
+                and not Vector.Analysis.Symbols.VectorSymbolKind.LoopVariable)
+            .Select(symbol => ToDocumentSymbol(analysis, symbol))
+            .ToArray();
+        return Task.FromResult(symbols);
     }
 
     [JsonRpcMethod(Methods.TextDocumentHoverName, UseSingleObjectParameterDeserialization = true)]
@@ -221,6 +247,38 @@ public sealed class VectorLanguageServer
                 throw new InvalidOperationException($"Cannot process '{operation}' while the language server is {this.state}.");
             }
         }
+    }
+
+    private static DocumentSymbol ToDocumentSymbol(
+        VectorAnalysisResult analysis,
+        Vector.Analysis.Symbols.VectorSymbol symbol) => new()
+    {
+        Name = symbol.Name,
+        Kind = symbol.Kind == Vector.Analysis.Symbols.VectorSymbolKind.Function
+            ? SymbolKind.Function
+            : SymbolKind.Variable,
+        Detail = symbol.Kind == Vector.Analysis.Symbols.VectorSymbolKind.Function
+            ? $"{symbol.Name}({string.Join(", ", symbol.Parameters)})"
+            : null,
+        Range = ToLspRange(analysis, symbol.FullSpan),
+        SelectionRange = ToLspRange(analysis, symbol.DeclarationSpan),
+        Children = symbol.Children
+            .Where(child => child.Kind is not Vector.Analysis.Symbols.VectorSymbolKind.Parameter
+                and not Vector.Analysis.Symbols.VectorSymbolKind.LoopVariable)
+            .Select(child => ToDocumentSymbol(analysis, child))
+            .ToArray(),
+    };
+
+    private static Microsoft.VisualStudio.LanguageServer.Protocol.Range ToLspRange(
+        VectorAnalysisResult analysis,
+        Vector.Core.Source.SourceSpan span)
+    {
+        Analysis.Text.TextRange range = analysis.Document.LineMap.GetRange(span);
+        return new Microsoft.VisualStudio.LanguageServer.Protocol.Range
+        {
+            Start = new Position { Line = range.Start.Line, Character = range.Start.Character },
+            End = new Position { Line = range.End.Line, Character = range.End.Character },
+        };
     }
 
     private sealed class NullLanguageClient : ILanguageClient

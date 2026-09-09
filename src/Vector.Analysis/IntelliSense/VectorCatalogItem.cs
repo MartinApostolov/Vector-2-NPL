@@ -6,6 +6,8 @@ public enum VectorCatalogItemKind
     Function,
     Module,
     Constant,
+    Variable,
+    Parameter,
 }
 
 public sealed record VectorCatalogItem(

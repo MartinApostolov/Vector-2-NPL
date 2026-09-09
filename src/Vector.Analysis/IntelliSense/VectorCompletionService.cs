@@ -5,6 +5,8 @@ using Vector.Core.Syntax.Statements;
 
 public sealed class VectorCompletionService
 {
+    private readonly VectorSymbolCompletionService symbols = new();
+
     public IReadOnlyList<VectorCatalogItem> GetCompletions(VectorAnalysisResult analysis, int utf16Offset)
     {
         ArgumentNullException.ThrowIfNull(analysis);
@@ -45,7 +47,8 @@ public sealed class VectorCompletionService
 
         IEnumerable<VectorCatalogItem> items = VectorLanguageCatalog.Keywords
             .Concat(VectorLanguageCatalog.Builtins.Select(ToCatalogItem))
-            .Concat(VectorLanguageCatalog.StandardModules.Select(ToCatalogItem));
+            .Concat(VectorLanguageCatalog.StandardModules.Select(ToCatalogItem))
+            .Concat(this.symbols.GetCompletions(analysis, utf16Offset, prefix));
         return items.Where(item => item.Label.StartsWith(prefix, StringComparison.Ordinal))
             .OrderBy(item => item.Label, StringComparer.Ordinal)
             .ToArray();

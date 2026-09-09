@@ -69,6 +69,52 @@ public sealed class LanguageServerIntelliSenseTests
         Assert.Null(hover);
     }
 
+    [Fact]
+    public async Task Completion_OffersUserSymbolsOnlyInsideTheirScope()
+    {
+        const string source = "if true {\n let result = 1;\n res\n}\nres";
+        Uri uri = new("file:///C:/workspace/scoped-completion.vec");
+        VectorLanguageServer server = await CreateServerAsync();
+        await OpenAsync(server, uri, source);
+
+        CompletionItem[] inside = await CompleteAsync(server, uri, 2, 4);
+        CompletionItem[] outside = await CompleteAsync(server, uri, 4, 3);
+
+        CompletionItem result = Assert.Single(inside, item => item.Label == "result");
+        Assert.Equal(CompletionItemKind.Variable, result.Kind);
+        Assert.DoesNotContain(outside, item => item.Label == "result");
+    }
+
+    [Fact]
+    public async Task DocumentSymbols_ReturnDeclarationsWithNestedFunctionStructureAndNameRanges()
+    {
+        const string source = """
+            let top = 1;
+            function outer(parameter) {
+                let local = parameter;
+                function inner(value) { return value; }
+            }
+            """;
+        Uri uri = new("file:///C:/workspace/symbols.vec");
+        VectorLanguageServer server = await CreateServerAsync();
+        await OpenAsync(server, uri, source);
+
+        DocumentSymbol[] symbols = await server.DocumentSymbolsAsync(new DocumentSymbolParams
+        {
+            TextDocument = new TextDocumentIdentifier { Uri = uri },
+        }, CancellationToken.None);
+
+        Assert.Equal(["top", "outer"], symbols.Select(symbol => symbol.Name));
+        DocumentSymbol outer = symbols[1];
+        Assert.Equal(SymbolKind.Function, outer.Kind);
+        Assert.Equal("outer(parameter)", outer.Detail);
+        Assert.Equal(1, outer.SelectionRange.Start.Line);
+        Assert.Equal(9, outer.SelectionRange.Start.Character);
+        Assert.NotNull(outer.Children);
+        Assert.Equal(["local", "inner"], outer.Children!.Select(symbol => symbol.Name));
+        Assert.Equal(SymbolKind.Function, outer.Children[1].Kind);
+    }
+
     private static async Task<VectorLanguageServer> CreateServerAsync()
     {
         var server = new VectorLanguageServer();
@@ -87,5 +133,15 @@ public sealed class LanguageServerIntelliSenseTests
                 Version = 1,
                 Text = source,
             },
+        }, CancellationToken.None);
+
+    private static Task<CompletionItem[]> CompleteAsync(
+        VectorLanguageServer server,
+        Uri uri,
+        int line,
+        int character) => server.CompletionAsync(new CompletionParams
+        {
+            TextDocument = new TextDocumentIdentifier { Uri = uri },
+            Position = new Position { Line = line, Character = character },
         }, CancellationToken.None);
 }

@@ -20,6 +20,7 @@ public sealed class LanguageServerLifecycleTests
         CompletionOptions completion = Assert.IsType<CompletionOptions>(result.Capabilities.CompletionProvider);
         Assert.Contains(".", Assert.IsType<string[]>(completion.TriggerCharacters));
         Assert.Equal(true, result.Capabilities.HoverProvider);
+        Assert.Equal(true, result.Capabilities.DocumentSymbolProvider);
     }
 
     [Fact]
