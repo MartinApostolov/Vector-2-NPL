@@ -8,6 +8,8 @@ using Vector.Core.Source;
 
 public sealed record VectorReferenceLocation(Uri Uri, TextRange Range, bool IsDeclaration);
 
+public sealed record VectorResolvedSymbol(VectorAnalysisResult Analysis, VectorSymbol Symbol);
+
 public sealed class VectorReferenceService
 {
     private readonly VectorModuleIndex modules;
@@ -28,7 +30,7 @@ public sealed class VectorReferenceService
         ArgumentNullException.ThrowIfNull(workspaceDocuments);
         cancellationToken.ThrowIfCancellationRequested();
 
-        ResolvedTarget? target = this.ResolveTarget(analysis, utf16Offset, cancellationToken);
+        VectorResolvedSymbol? target = this.ResolveSymbol(analysis, utf16Offset, cancellationToken);
         if (target is null || target.Symbol.IsSynthetic || target.Symbol.IsDuplicate)
         {
             return [];
@@ -70,23 +72,23 @@ public sealed class VectorReferenceService
             .ToArray();
     }
 
-    private ResolvedTarget? ResolveTarget(
+    public VectorResolvedSymbol? ResolveSymbol(
         VectorAnalysisResult analysis,
         int utf16Offset,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
         VectorSymbol? declaration = analysis.SemanticModel.Symbols.FirstOrDefault(symbol =>
             Contains(symbol.DeclarationSpan, utf16Offset));
         if (declaration is not null)
         {
-            return new ResolvedTarget(analysis, declaration);
+            return new VectorResolvedSymbol(analysis, declaration);
         }
 
         VectorReference? reference = analysis.SemanticModel.References.FirstOrDefault(candidate =>
             Contains(candidate.Span, utf16Offset));
         if (reference?.Symbol is not null)
         {
-            return new ResolvedTarget(analysis, reference.Symbol);
+            return new VectorResolvedSymbol(analysis, reference.Symbol);
         }
 
         VectorQualifiedReference? qualified = analysis.SemanticModel.QualifiedReferences.FirstOrDefault(candidate =>
@@ -96,7 +98,7 @@ public sealed class VectorReferenceService
         return qualified is null ? null : this.ResolveQualifiedMember(analysis, qualified, cancellationToken);
     }
 
-    private ResolvedTarget? ResolveQualifiedMember(
+    private VectorResolvedSymbol? ResolveQualifiedMember(
         VectorAnalysisResult importingAnalysis,
         VectorQualifiedReference reference,
         CancellationToken cancellationToken)
@@ -114,12 +116,12 @@ public sealed class VectorReferenceService
 
         VectorSymbol? member = module!.Members.FirstOrDefault(symbol =>
             !symbol.IsDuplicate && symbol.Name == memberName);
-        return member is null ? null : new ResolvedTarget(module.Analysis, member);
+        return member is null ? null : new VectorResolvedSymbol(module.Analysis, member);
     }
 
     private void AddQualifiedMemberReferences(
         VectorAnalysisResult document,
-        ResolvedTarget target,
+        VectorResolvedSymbol target,
         List<VectorReferenceLocation> locations,
         CancellationToken cancellationToken)
     {
@@ -133,7 +135,7 @@ public sealed class VectorReferenceService
                 continue;
             }
 
-            ResolvedTarget? candidate = this.ResolveQualifiedMember(document, reference, cancellationToken);
+            VectorResolvedSymbol? candidate = this.ResolveQualifiedMember(document, reference, cancellationToken);
             if (candidate is not null && SameSymbol(candidate, target))
             {
                 Add(locations, document, reference.SegmentSpans[^1], isDeclaration: false);
@@ -141,7 +143,7 @@ public sealed class VectorReferenceService
         }
     }
 
-    private static bool SameSymbol(ResolvedTarget left, ResolvedTarget right) =>
+    private static bool SameSymbol(VectorResolvedSymbol left, VectorResolvedSymbol right) =>
         left.Analysis.Document.Uri == right.Analysis.Document.Uri
         && left.Symbol.DeclarationSpan.Start.Offset == right.Symbol.DeclarationSpan.Start.Offset
         && left.Symbol.DeclarationSpan.End.Offset == right.Symbol.DeclarationSpan.End.Offset;
@@ -157,8 +159,6 @@ public sealed class VectorReferenceService
 
     private static bool Contains(SourceSpan span, int offset) =>
         offset >= span.Start.Offset && offset < span.End.Offset;
-
-    private sealed record ResolvedTarget(VectorAnalysisResult Analysis, VectorSymbol Symbol);
 
     private sealed record LocationKey(
         Uri Uri,

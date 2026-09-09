@@ -23,6 +23,7 @@ public sealed class LanguageServerLifecycleTests
         Assert.Equal(true, result.Capabilities.DocumentSymbolProvider);
         Assert.Equal(true, result.Capabilities.DefinitionProvider);
         Assert.Equal(true, result.Capabilities.ReferencesProvider);
+        Assert.NotNull(result.Capabilities.RenameProvider);
         SignatureHelpOptions signatureHelp = Assert.IsType<SignatureHelpOptions>(result.Capabilities.SignatureHelpProvider);
         Assert.Equal(["(", ","], Assert.IsType<string[]>(signatureHelp.TriggerCharacters));
     }

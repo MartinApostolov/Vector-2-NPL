@@ -106,6 +106,23 @@ public sealed class LanguageServerProtocolTests
 
             await WriteMessageAsync(
                 process.StandardInput.BaseStream,
+                """{"jsonrpc":"2.0","id":8,"method":"textDocument/references","params":{"textDocument":{"uri":"file:///C:/workspace/protocol.vec"},"position":{"line":0,"character":5},"context":{"includeDeclaration":true}}}""");
+
+            using JsonDocument referencesResponse = await ReadMessageAsync(process.StandardOutput.BaseStream);
+            Assert.Equal(8, referencesResponse.RootElement.GetProperty("id").GetInt32());
+            Assert.Single(referencesResponse.RootElement.GetProperty("result").EnumerateArray());
+
+            await WriteMessageAsync(
+                process.StandardInput.BaseStream,
+                """{"jsonrpc":"2.0","id":9,"method":"textDocument/rename","params":{"textDocument":{"uri":"file:///C:/workspace/protocol.vec"},"position":{"line":0,"character":5},"newName":"result"}}""");
+
+            using JsonDocument renameResponse = await ReadMessageAsync(process.StandardOutput.BaseStream);
+            Assert.Equal(9, renameResponse.RootElement.GetProperty("id").GetInt32());
+            JsonElement changes = renameResponse.RootElement.GetProperty("result").GetProperty("changes");
+            Assert.Single(changes.GetProperty("file:///C:/workspace/protocol.vec").EnumerateArray());
+
+            await WriteMessageAsync(
+                process.StandardInput.BaseStream,
                 """{"jsonrpc":"2.0","id":5,"method":"shutdown"}""");
 
             using JsonDocument shutdownResponse = await ReadMessageAsync(process.StandardOutput.BaseStream);

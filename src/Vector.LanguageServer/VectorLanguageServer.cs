@@ -20,6 +20,7 @@ public sealed class VectorLanguageServer
     private readonly VectorHoverService hoverService = new();
     private readonly VectorDefinitionService definitionService;
     private readonly VectorReferenceService referenceService;
+    private readonly VectorRenameService renameService;
     private readonly VectorSignatureHelpService signatureHelpService;
     private ServerLifecycleState state;
 
@@ -48,6 +49,7 @@ public sealed class VectorLanguageServer
         this.completionService = new VectorCompletionService(this.documents.Modules);
         this.definitionService = new VectorDefinitionService(this.documents.Modules);
         this.referenceService = new VectorReferenceService(this.documents.Modules);
+        this.renameService = new VectorRenameService(this.documents.Modules);
         this.signatureHelpService = new VectorSignatureHelpService(this.documents.Modules);
     }
 
@@ -82,6 +84,7 @@ public sealed class VectorLanguageServer
                 DocumentSymbolProvider = true,
                 DefinitionProvider = true,
                 ReferencesProvider = true,
+                RenameProvider = true,
                 SignatureHelpProvider = new SignatureHelpOptions { TriggerCharacters = ["(", ","] },
             },
             ServerInfo = new VectorServerInfo
@@ -272,6 +275,60 @@ public sealed class VectorLanguageServer
             })
             .ToArray();
         return Task.FromResult(locations);
+    }
+
+    [JsonRpcMethod(Methods.TextDocumentRenameName, UseSingleObjectParameterDeserialization = true)]
+    public Task<WorkspaceEdit?> RenameAsync(RenameParams parameters, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        this.RequireState(ServerLifecycleState.Initialized, Methods.TextDocumentRenameName);
+        if (!this.documents.TryGetDocument(parameters.TextDocument.Uri, out VectorAnalysisResult? analysis)
+            || analysis is null)
+        {
+            return Task.FromResult<WorkspaceEdit?>(null);
+        }
+
+        int offset = analysis.Document.LineMap.GetOffset(
+            new Analysis.Text.TextPosition(parameters.Position.Line, parameters.Position.Character));
+        VectorRenameResult result = this.renameService.Rename(
+            analysis,
+            offset,
+            parameters.NewName,
+            this.documents.Documents,
+            cancellationToken);
+        if (!result.Success)
+        {
+            if (result.FailureCode == VectorRenameFailureCode.NotRenameable)
+            {
+                return Task.FromResult<WorkspaceEdit?>(null);
+            }
+
+            throw new InvalidOperationException(result.FailureMessage);
+        }
+
+        var changes = result.Edits
+            .GroupBy(edit => edit.Uri.AbsoluteUri, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(edit => new TextEdit
+                {
+                    NewText = edit.NewText,
+                    Range = new Microsoft.VisualStudio.LanguageServer.Protocol.Range
+                    {
+                        Start = new Position
+                        {
+                            Line = edit.Range.Start.Line,
+                            Character = edit.Range.Start.Character,
+                        },
+                        End = new Position
+                        {
+                            Line = edit.Range.End.Line,
+                            Character = edit.Range.End.Character,
+                        },
+                    },
+                }).ToArray(),
+                StringComparer.Ordinal);
+        return Task.FromResult<WorkspaceEdit?>(new WorkspaceEdit { Changes = changes });
     }
 
     [JsonRpcMethod(Methods.TextDocumentSignatureHelpName, UseSingleObjectParameterDeserialization = true)]
