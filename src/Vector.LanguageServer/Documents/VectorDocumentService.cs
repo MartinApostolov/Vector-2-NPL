@@ -17,10 +17,12 @@ internal sealed class VectorDocumentService
     private readonly Dictionary<Uri, CancellationTokenSource> pendingChanges = new();
     private readonly VectorWorkspace workspace = new();
     private readonly ILanguageClient client;
+    private readonly VectorLanguageServerOptions options;
 
-    public VectorDocumentService(ILanguageClient client)
+    public VectorDocumentService(ILanguageClient client, VectorLanguageServerOptions options)
     {
         this.client = client ?? throw new ArgumentNullException(nameof(client));
+        this.options = options ?? throw new ArgumentNullException(nameof(options));
     }
 
     public bool TryGetDocument(Uri uri, out VectorAnalysisResult? result) =>
@@ -106,8 +108,9 @@ internal sealed class VectorDocumentService
     {
         if (uri.IsFile)
         {
-            string? inheritedRoot = this.workspace.Modules.GetInheritedProgramRoot(uri.LocalPath);
-            return VectorDocumentSnapshot.FromFile(uri.LocalPath, text, version, inheritedRoot);
+            string? programRoot = this.options.ProgramRoot
+                ?? this.workspace.Modules.GetInheritedProgramRoot(uri.LocalPath);
+            return VectorDocumentSnapshot.FromFile(uri.LocalPath, text, version, programRoot);
         }
 
         return new VectorDocumentSnapshot(uri, uri.ToString(), text, version);
@@ -115,7 +118,8 @@ internal sealed class VectorDocumentService
 
     private async Task PublishAsync(VectorAnalysisResult result)
     {
-        LspDiagnostic[] diagnostics = result.Diagnostics.Select(diagnostic => new LspDiagnostic
+        LspDiagnostic[] diagnostics = this.options.LiveDiagnostics
+            ? result.Diagnostics.Select(diagnostic => new LspDiagnostic
         {
             Code = diagnostic.Code.ToString(),
             Message = diagnostic.Message,
@@ -131,7 +135,8 @@ internal sealed class VectorDocumentService
                 Start = ToLspPosition(result.Document.LineMap.GetPosition(diagnostic.Span.Start.Offset)),
                 End = ToLspPosition(result.Document.LineMap.GetPosition(diagnostic.Span.End.Offset)),
             },
-        }).ToArray();
+        }).ToArray()
+            : [];
 
         await this.client.PublishDiagnosticsAsync(new PublishDiagnosticParams
         {

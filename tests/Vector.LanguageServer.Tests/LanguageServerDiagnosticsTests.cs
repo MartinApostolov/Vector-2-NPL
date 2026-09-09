@@ -112,6 +112,19 @@ public sealed class LanguageServerDiagnosticsTests
         Assert.Empty(Assert.Single(client.Publications).Diagnostics);
     }
 
+    [Fact]
+    public async Task LiveDiagnosticsOff_PublishesAnEmptySetForMalformedSource()
+    {
+        var client = new RecordingLanguageClient();
+        var server = new VectorLanguageServer(client, new VectorLanguageServerOptions(false, null));
+        await server.InitializeAsync(JObject.Parse("{}"), CancellationToken.None);
+        await server.InitializedAsync(new object(), CancellationToken.None);
+
+        await OpenAsync(server, new Uri("file:///C:/workspace/disabled.vec"), "let value = ;", 1);
+
+        Assert.Empty(Assert.Single(client.Publications).Diagnostics);
+    }
+
     private static async Task<VectorLanguageServer> CreateServerAsync(ILanguageClient client)
     {
         var server = new VectorLanguageServer(client);

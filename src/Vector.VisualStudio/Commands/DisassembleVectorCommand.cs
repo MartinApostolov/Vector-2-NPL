@@ -5,10 +5,14 @@ using Microsoft.VisualStudio.Extensibility.Commands;
 using Vector.ExecutionProtocol;
 using Vector.VisualStudio.Execution;
 using Vector.VisualStudio.Output;
+using Vector.VisualStudio.Settings;
 
 [VisualStudioContribution]
-internal sealed class DisassembleVectorCommand(VectorExecutionClient client, VectorOutputService output)
-    : VectorExecutionCommand(client, output)
+internal sealed class DisassembleVectorCommand(
+    VectorExecutionClient client,
+    VectorOutputService output,
+    VectorSettingsService settings)
+    : VectorExecutionCommand(client, output, settings)
 {
     public override CommandConfiguration CommandConfiguration => new("%Vector.Commands.Disassemble.DisplayName%")
     {
@@ -19,7 +23,7 @@ internal sealed class DisassembleVectorCommand(VectorExecutionClient client, Vec
             VectorExtension.VectorDocumentTypeName),
     };
 
-    protected override VectorExecutionEngine Engine => VectorExecutionEngine.Vm;
+    protected override VectorExecutionEngine? EngineOverride => VectorExecutionEngine.Vm;
 
     protected override VectorExecutionOperation Operation => VectorExecutionOperation.Disassemble;
 }

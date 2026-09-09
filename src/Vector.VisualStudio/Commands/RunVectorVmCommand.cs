@@ -5,10 +5,14 @@ using Microsoft.VisualStudio.Extensibility.Commands;
 using Vector.ExecutionProtocol;
 using Vector.VisualStudio.Execution;
 using Vector.VisualStudio.Output;
+using Vector.VisualStudio.Settings;
 
 [VisualStudioContribution]
-internal sealed class RunVectorVmCommand(VectorExecutionClient client, VectorOutputService output)
-    : VectorExecutionCommand(client, output)
+internal sealed class RunVectorVmCommand(
+    VectorExecutionClient client,
+    VectorOutputService output,
+    VectorSettingsService settings)
+    : VectorExecutionCommand(client, output, settings)
 {
     public override CommandConfiguration CommandConfiguration => new("%Vector.Commands.RunVm.DisplayName%")
     {
@@ -19,5 +23,5 @@ internal sealed class RunVectorVmCommand(VectorExecutionClient client, VectorOut
             VectorExtension.VectorDocumentTypeName),
     };
 
-    protected override VectorExecutionEngine Engine => VectorExecutionEngine.Vm;
+    protected override VectorExecutionEngine? EngineOverride => VectorExecutionEngine.Vm;
 }

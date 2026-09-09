@@ -12,7 +12,9 @@ internal static class Program
         var formatter = new JsonMessageFormatter();
         using var handler = new HeaderDelimitedMessageHandler(output, input, formatter);
         using var rpc = new JsonRpc(handler);
-        var server = new VectorLanguageServer(new JsonRpcLanguageClient(rpc));
+        var server = new VectorLanguageServer(
+            new JsonRpcLanguageClient(rpc),
+            VectorLanguageServerOptions.FromEnvironment());
 
         rpc.AddLocalRpcTarget(server);
         rpc.Disconnected += (_, _) => server.NotifyDisconnected();

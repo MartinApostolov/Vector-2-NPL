@@ -6,19 +6,25 @@ using Microsoft.VisualStudio.Extensibility.Editor;
 using Vector.ExecutionProtocol;
 using Vector.VisualStudio.Execution;
 using Vector.VisualStudio.Output;
+using Vector.VisualStudio.Settings;
 
-public abstract class VectorExecutionCommand : Command
+internal abstract class VectorExecutionCommand : Command
 {
     private readonly VectorExecutionClient client;
     private readonly VectorOutputService output;
+    private readonly VectorSettingsService settings;
 
-    protected VectorExecutionCommand(VectorExecutionClient client, VectorOutputService output)
+    protected VectorExecutionCommand(
+        VectorExecutionClient client,
+        VectorOutputService output,
+        VectorSettingsService settings)
     {
         this.client = client;
         this.output = output;
+        this.settings = settings;
     }
 
-    protected abstract VectorExecutionEngine Engine { get; }
+    protected virtual VectorExecutionEngine? EngineOverride => null;
 
     protected virtual VectorExecutionOperation Operation => VectorExecutionOperation.Run;
 
@@ -33,15 +39,23 @@ public abstract class VectorExecutionCommand : Command
 
         Uri uri = textView.Document.Uri;
         string? sourcePath = uri.IsFile ? uri.LocalPath : null;
-        var request = new VectorExecutionRequest
+        VectorIdeSettings currentSettings = await this.settings.GetAsync(cancellationToken);
+        VectorExecutionPreparation preparation = VectorExecutionRequestFactory.Create(
+            textView.Document.Text.CopyToString(),
+            sourcePath,
+            currentSettings,
+            this.EngineOverride,
+            this.Operation);
+        if (preparation.Failure is not null)
         {
-            Source = textView.Document.Text.CopyToString(),
-            SourcePath = sourcePath,
-            ProgramRoot = sourcePath is null ? null : Path.GetDirectoryName(sourcePath),
-            Engine = this.Engine,
-            Operation = this.Operation,
-        };
+            await this.output.WriteAsync(
+                this.Extensibility,
+                $"Vector execution settings error [{preparation.Failure.Code}]: {preparation.Failure.Message}",
+                cancellationToken);
+            return;
+        }
 
+        VectorExecutionRequest request = preparation.Request!;
         VectorExecutionResponse response = await this.client.ExecuteAsync(request, cancellationToken);
         await this.output.WriteAsync(
             this.Extensibility,

@@ -9,5 +9,17 @@
   "Vector.Commands.RunVm.DisplayName": "Vector: Run Current File with VM",
   "Vector.Commands.RunVm.Tooltip": "Run the current unsaved Vector buffer with the bytecode virtual machine.",
   "Vector.Commands.Disassemble.DisplayName": "Vector: Show Bytecode",
-  "Vector.Commands.Disassemble.Tooltip": "Compile and disassemble the current Vector buffer without executing it."
+  "Vector.Commands.Disassemble.Tooltip": "Compile and disassemble the current Vector buffer without executing it.",
+  "Vector.Settings.Category.DisplayName": "Vector",
+  "Vector.Settings.Category.Description": "Editor analysis and isolated execution settings for Vector files.",
+  "Vector.Settings.DefaultEngine.DisplayName": "Default execution engine",
+  "Vector.Settings.DefaultEngine.Description": "Engine used by Vector: Run Current File.",
+  "Vector.Settings.DefaultEngine.Interpreter": "Interpreter",
+  "Vector.Settings.DefaultEngine.Vm": "VM",
+  "Vector.Settings.LiveDiagnostics.DisplayName": "Live diagnostics",
+  "Vector.Settings.LiveDiagnostics.Description": "Publish Vector lexer and parser diagnostics while editing.",
+  "Vector.Settings.ProgramRoot.DisplayName": "Program root",
+  "Vector.Settings.ProgramRoot.Description": "Optional absolute program root for local module analysis and execution. Leave empty to infer it from the current file.",
+  "Vector.Settings.PluginPaths.DisplayName": "Execution plugin paths",
+  "Vector.Settings.PluginPaths.Description": "Semicolon- or newline-separated trusted plugin DLL paths. Plugins are loaded only by explicit run commands in the isolated execution host."
 }

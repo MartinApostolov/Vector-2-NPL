@@ -37,9 +37,13 @@ public sealed class VectorLanguageServer
 
     public int ExitCode { get; private set; }
 
-    public VectorLanguageServer(ILanguageClient? client = null)
+    public VectorLanguageServer(
+        ILanguageClient? client = null,
+        VectorLanguageServerOptions? options = null)
     {
-        this.documents = new VectorDocumentService(client ?? NullLanguageClient.Instance);
+        this.documents = new VectorDocumentService(
+            client ?? NullLanguageClient.Instance,
+            options ?? VectorLanguageServerOptions.Default);
         this.completionService = new VectorCompletionService(this.documents.Modules);
         this.definitionService = new VectorDefinitionService(this.documents.Modules);
         this.signatureHelpService = new VectorSignatureHelpService(this.documents.Modules);

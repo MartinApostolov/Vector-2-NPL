@@ -142,6 +142,37 @@ public sealed class LanguageServerIntelliSenseTests
         }
     }
 
+    [Fact]
+    public async Task Completion_UsesExplicitProgramRootOutsideTheDocumentDirectory()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "vector-lsp-explicit-root-" + Guid.NewGuid().ToString("N"));
+        string documentDirectory = Path.Combine(Path.GetTempPath(), "vector-lsp-document-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "tools"));
+        Directory.CreateDirectory(documentDirectory);
+        try
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(root, "tools", "answers.vec"),
+                "let ultimate = 42;");
+            Uri uri = new(Path.Combine(documentDirectory, "main.vec"));
+            const string source = "import tools.answers;\ntools.answers.";
+            var server = new VectorLanguageServer(
+                options: new VectorLanguageServerOptions(true, root));
+            await server.InitializeAsync(JObject.Parse("{}"), CancellationToken.None);
+            await server.InitializedAsync(new object(), CancellationToken.None);
+            await OpenAsync(server, uri, source);
+
+            CompletionItem item = Assert.Single(await CompleteAsync(server, uri, 1, "tools.answers.".Length));
+
+            Assert.Equal("ultimate", item.Label);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+            Directory.Delete(documentDirectory, recursive: true);
+        }
+    }
+
     private static async Task<VectorLanguageServer> CreateServerAsync()
     {
         var server = new VectorLanguageServer();

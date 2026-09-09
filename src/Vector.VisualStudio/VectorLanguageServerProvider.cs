@@ -7,22 +7,34 @@ using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.LanguageServer;
 using Microsoft.VisualStudio.RpcContracts.LanguageServerProvider;
 using Nerdbank.Streams;
+using Vector.VisualStudio.Settings;
 
 #pragma warning disable VSEXTPREVIEW_LSP
 [VisualStudioContribution]
 internal sealed class VectorLanguageServerProvider : LanguageServerProvider
 {
+    private const string LiveDiagnosticsEnvironmentVariable = "VECTOR_LIVE_DIAGNOSTICS";
+    private const string ProgramRootEnvironmentVariable = "VECTOR_PROGRAM_ROOT";
     private readonly object processLock = new();
+    private readonly VectorSettingsService settings;
     private Process? process;
+    private VectorIdeSettings? activeSettings;
+
+    public VectorLanguageServerProvider(VectorSettingsService settings)
+    {
+        this.settings = settings;
+        this.settings.Changed += this.OnSettingsChangedAsync;
+    }
 
     public override LanguageServerProviderConfiguration LanguageServerProviderConfiguration => new(
         "%Vector.VisualStudio.LanguageServer.DisplayName%",
         [DocumentFilter.FromDocumentType(VectorExtension.VectorDocumentType)]);
 
-    public override Task<IDuplexPipe?> CreateServerConnectionAsync(CancellationToken cancellationToken)
+    public override async Task<IDuplexPipe?> CreateServerConnectionAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         this.StopServer();
+        VectorIdeSettings currentSettings = await this.settings.GetAsync(cancellationToken);
 
         string extensionDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)
             ?? throw new InvalidOperationException("The Vector extension installation directory is unavailable.");
@@ -30,7 +42,7 @@ internal sealed class VectorLanguageServerProvider : LanguageServerProvider
         if (!File.Exists(executablePath))
         {
             Trace.TraceError("Vector language server executable was not found in the extension payload.");
-            return Task.FromResult<IDuplexPipe?>(null);
+            return null;
         }
 
         var startInfo = new ProcessStartInfo(executablePath)
@@ -42,6 +54,11 @@ internal sealed class VectorLanguageServerProvider : LanguageServerProvider
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        startInfo.Environment[LiveDiagnosticsEnvironmentVariable] = currentSettings.LiveDiagnostics.ToString();
+        if (currentSettings.ProgramRoot is not null)
+        {
+            startInfo.Environment[ProgramRootEnvironmentVariable] = currentSettings.ProgramRoot;
+        }
 
         var newProcess = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         newProcess.ErrorDataReceived += (_, args) =>
@@ -57,25 +74,26 @@ internal sealed class VectorLanguageServerProvider : LanguageServerProvider
             if (!newProcess.Start())
             {
                 newProcess.Dispose();
-                return Task.FromResult<IDuplexPipe?>(null);
+                return null;
             }
 
             newProcess.BeginErrorReadLine();
             lock (this.processLock)
             {
                 this.process = newProcess;
+                this.activeSettings = currentSettings;
             }
 
             Trace.TraceInformation("Vector language server started (PID {0}).", newProcess.Id);
-            return Task.FromResult<IDuplexPipe?>(new DuplexPipe(
+            return new DuplexPipe(
                 PipeReader.Create(newProcess.StandardOutput.BaseStream),
-                PipeWriter.Create(newProcess.StandardInput.BaseStream)));
+                PipeWriter.Create(newProcess.StandardInput.BaseStream));
         }
         catch (Exception exception)
         {
             Trace.TraceError("Vector language server failed to start: {0}", exception.Message);
             newProcess.Dispose();
-            return Task.FromResult<IDuplexPipe?>(null);
+            return null;
         }
     }
 
@@ -99,10 +117,32 @@ internal sealed class VectorLanguageServerProvider : LanguageServerProvider
     {
         if (disposing)
         {
+            this.settings.Changed -= this.OnSettingsChangedAsync;
             this.StopServer();
         }
 
         base.Dispose(disposing);
+    }
+
+    private Task OnSettingsChangedAsync(VectorIdeSettings changedSettings)
+    {
+        VectorIdeSettings? runningSettings;
+        lock (this.processLock)
+        {
+            runningSettings = this.activeSettings;
+        }
+
+        if (runningSettings is not null
+            && (runningSettings.LiveDiagnostics != changedSettings.LiveDiagnostics
+                || !StringComparer.OrdinalIgnoreCase.Equals(
+                    runningSettings.ProgramRoot,
+                    changedSettings.ProgramRoot)))
+        {
+            Trace.TraceInformation("Restarting the Vector language server because analysis settings changed.");
+            this.StopServer();
+        }
+
+        return Task.CompletedTask;
     }
 
     private void StopServer()
@@ -112,6 +152,7 @@ internal sealed class VectorLanguageServerProvider : LanguageServerProvider
         {
             oldProcess = this.process;
             this.process = null;
+            this.activeSettings = null;
         }
 
         if (oldProcess is null)

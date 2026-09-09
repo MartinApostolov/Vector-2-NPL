@@ -24,7 +24,9 @@
 
   <ItemGroup>
     <Compile Include="..\..\src\Vector.VisualStudio\Execution\VectorExecutionClient.cs" Link="Production\VectorExecutionClient.cs" />
+    <Compile Include="..\..\src\Vector.VisualStudio\Execution\VectorExecutionRequestFactory.cs" Link="Production\VectorExecutionRequestFactory.cs" />
     <Compile Include="..\..\src\Vector.VisualStudio\Output\VectorExecutionOutputFormatter.cs" Link="Production\VectorExecutionOutputFormatter.cs" />
+    <Compile Include="..\..\src\Vector.VisualStudio\Settings\VectorIdeSettings.cs" Link="Production\VectorIdeSettings.cs" />
   </ItemGroup>
 
 </Project>
