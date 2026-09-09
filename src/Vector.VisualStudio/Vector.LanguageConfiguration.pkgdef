@@ -1,0 +1,5 @@
+[$RootKey$\TextMate\Repositories]
+"VectorGrammars"="$PackageFolder$\Grammars"
+
+[$RootKey$\TextMate\LanguageConfiguration\GrammarMapping]
+"source.vector"="$PackageFolder$\LanguageConfiguration\vector-language-configuration.json"

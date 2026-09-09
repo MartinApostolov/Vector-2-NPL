@@ -19,6 +19,21 @@
     <ProjectReference Include="..\Vector.LanguageServer\Vector.LanguageServer.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Grammars\vector.tmLanguage.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Content Include="LanguageConfiguration\vector-language-configuration.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Content Include="Vector.LanguageConfiguration.pkgdef">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+  </ItemGroup>
+
   <Target Name="CopyVectorLanguageServer" AfterTargets="Build">
     <ItemGroup>
       <VectorLanguageServerFiles Include="..\Vector.LanguageServer\bin\$(Configuration)\net8.0\*" />
@@ -34,6 +49,13 @@
       <VSIXSourceItem Include="..\Vector.LanguageServer\bin\$(Configuration)\net8.0\*">
         <VSIXSubPath>LanguageServer</VSIXSubPath>
       </VSIXSourceItem>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="UseVectorVsixManifest" BeforeTargets="DetokenizeVsixManifestFile">
+    <ItemGroup>
+      <SourceVsixManifest Remove="@(SourceVsixManifest)" />
+      <SourceVsixManifest Include="$(MSBuildProjectDirectory)\source.extension.vsixmanifest" />
     </ItemGroup>
   </Target>
 

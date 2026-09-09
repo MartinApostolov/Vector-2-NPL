@@ -1,0 +1,116 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Vector",
+  "scopeName": "source.vector",
+  "fileTypes": [
+    "vec"
+  ],
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "name": "meta.function.definition.vector",
+      "match": "\\b(function)\\s+([_\\p{L}][_\\p{L}\\p{N}\\p{M}]*)",
+      "captures": {
+        "1": {
+          "name": "storage.type.function.vector"
+        },
+        "2": {
+          "name": "entity.name.function.vector"
+        }
+      }
+    },
+    {
+      "name": "meta.import.vector",
+      "match": "\\b(import)\\s+([_\\p{L}][_\\p{L}\\p{N}\\p{M}]*(?:\\.[_\\p{L}][_\\p{L}\\p{N}\\p{M}]*)*)",
+      "captures": {
+        "1": {
+          "name": "keyword.control.import.vector"
+        },
+        "2": {
+          "name": "entity.name.namespace.vector"
+        }
+      }
+    },
+    {
+      "name": "keyword.control.vector",
+      "match": "\\b(?:let|if|else|while|for|in|function|return|break|continue|and|or|not|import)\\b"
+    },
+    {
+      "name": "constant.language.vector",
+      "match": "\\b(?:true|false|nothing)\\b"
+    },
+    {
+      "name": "constant.numeric.vector",
+      "match": "(?x)(?<![_\\p{L}\\p{N}\\p{M}])(?:\\d+\\.\\d*|\\.\\d+|\\d+)(?:[eE][+-]?\\d+)?(?![_\\p{L}\\p{N}\\p{M}])"
+    },
+    {
+      "name": "support.function.builtin.vector",
+      "match": "\\b(?:print|length|concat|text|number|type|range)(?=\\s*\\()"
+    },
+    {
+      "name": "entity.name.function.call.vector",
+      "match": "\\b[_\\p{L}][_\\p{L}\\p{N}\\p{M}]*(?=\\s*\\()"
+    },
+    {
+      "name": "keyword.operator.vector",
+      "match": "==|!=|<=|>=|[+\\-*/%<>=]"
+    },
+    {
+      "name": "punctuation.separator.vector",
+      "match": "[.,;]"
+    },
+    {
+      "name": "punctuation.section.group.vector",
+      "match": "[(){}\\[\\]]"
+    },
+    {
+      "name": "variable.other.readwrite.vector",
+      "match": "\\b[_\\p{L}][_\\p{L}\\p{N}\\p{M}]*\\b"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.vector",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.vector",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.vector",
+          "begin": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.vector"
+            }
+          },
+          "end": "\"|$",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.vector"
+            }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.vector",
+              "match": "\\\\[\\\\\"nrt]"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

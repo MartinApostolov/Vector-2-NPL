@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">
+  <Metadata>
+    <Identity Id="Vector.VisualStudio.7e4c1e9c-7699-48fd-b73f-d9fc5ef24ec3" Version="1.0.0.0" Language="en-US" Publisher="Martin Apostolov" />
+    <DisplayName>Vector Language Support</DisplayName>
+    <Description>Visual Studio language tooling for the Vector programming language.</Description>
+    <Preview>true</Preview>
+  </Metadata>
+  <Installation ExtensionType="VisualStudio.Extensibility">
+    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.14,)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.14,)">
+      <ProductArchitecture>arm64</ProductArchitecture>
+    </InstallationTarget>
+    <DotnetTargetVersions>net8.0</DotnetTargetVersions>
+  </Installation>
+  <Prerequisites>
+    <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[17.14,)" DisplayName="Visual Studio core editor" />
+  </Prerequisites>
+  <Assets>
+    <Asset Type="Microsoft.VisualStudio.VsPackage" Path="Vector.LanguageConfiguration.pkgdef" />
+  </Assets>
+</PackageManifest>
