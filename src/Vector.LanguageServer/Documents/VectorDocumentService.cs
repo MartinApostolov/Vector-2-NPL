@@ -22,6 +22,9 @@ internal sealed class VectorDocumentService
         this.client = client ?? throw new ArgumentNullException(nameof(client));
     }
 
+    public bool TryGetDocument(Uri uri, out VectorAnalysisResult? result) =>
+        this.workspace.TryGetDocument(uri, out result);
+
     public async Task OpenAsync(TextDocumentItem document, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(document);

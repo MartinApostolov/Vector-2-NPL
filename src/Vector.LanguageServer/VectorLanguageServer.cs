@@ -6,12 +6,16 @@ using Newtonsoft.Json.Linq;
 using StreamJsonRpc;
 using Vector.LanguageServer.Documents;
 using Vector.LanguageServer.Protocol;
+using Vector.Analysis.Documents;
+using Vector.Analysis.IntelliSense;
 
 public sealed class VectorLanguageServer
 {
     private readonly object stateLock = new();
     private readonly TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly VectorDocumentService documents;
+    private readonly VectorCompletionService completionService = new();
+    private readonly VectorHoverService hoverService = new();
     private ServerLifecycleState state;
 
     public ServerLifecycleState State
@@ -60,6 +64,8 @@ public sealed class VectorLanguageServer
                     OpenClose = true,
                     Change = TextDocumentSyncKind.Full,
                 },
+                CompletionProvider = new CompletionOptions { TriggerCharacters = ["."] },
+                HoverProvider = true,
             },
             ServerInfo = new VectorServerInfo
             {
@@ -115,6 +121,67 @@ public sealed class VectorLanguageServer
         cancellationToken.ThrowIfCancellationRequested();
         this.RequireState(ServerLifecycleState.Initialized, Methods.TextDocumentDidCloseName);
         return this.documents.CloseAsync(parameters.TextDocument);
+    }
+
+    [JsonRpcMethod(Methods.TextDocumentCompletionName, UseSingleObjectParameterDeserialization = true)]
+    public Task<CompletionItem[]> CompletionAsync(CompletionParams parameters, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        this.RequireState(ServerLifecycleState.Initialized, Methods.TextDocumentCompletionName);
+        if (!this.documents.TryGetDocument(parameters.TextDocument.Uri, out VectorAnalysisResult? analysis)
+            || analysis is null)
+        {
+            return Task.FromResult(Array.Empty<CompletionItem>());
+        }
+
+        int offset = analysis.Document.LineMap.GetOffset(
+            new Analysis.Text.TextPosition(parameters.Position.Line, parameters.Position.Character));
+        CompletionItem[] items = this.completionService.GetCompletions(analysis, offset)
+            .Select(item => new CompletionItem
+            {
+                Label = item.Label,
+                Kind = item.Kind switch
+                {
+                    VectorCatalogItemKind.Keyword => CompletionItemKind.Keyword,
+                    VectorCatalogItemKind.Module => CompletionItemKind.Module,
+                    VectorCatalogItemKind.Constant => CompletionItemKind.Constant,
+                    _ => CompletionItemKind.Function,
+                },
+                Detail = item.Detail,
+                Documentation = item.Documentation,
+                InsertText = item.Label,
+            }).ToArray();
+        return Task.FromResult(items);
+    }
+
+    [JsonRpcMethod(Methods.TextDocumentHoverName, UseSingleObjectParameterDeserialization = true)]
+    public Task<Hover?> HoverAsync(TextDocumentPositionParams parameters, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        this.RequireState(ServerLifecycleState.Initialized, Methods.TextDocumentHoverName);
+        if (!this.documents.TryGetDocument(parameters.TextDocument.Uri, out VectorAnalysisResult? analysis)
+            || analysis is null)
+        {
+            return Task.FromResult<Hover?>(null);
+        }
+
+        int offset = analysis.Document.LineMap.GetOffset(
+            new Analysis.Text.TextPosition(parameters.Position.Line, parameters.Position.Character));
+        VectorHoverInfo? info = this.hoverService.GetHover(analysis, offset);
+        if (info is null)
+        {
+            return Task.FromResult<Hover?>(null);
+        }
+
+        return Task.FromResult<Hover?>(new Hover
+        {
+            Contents = new MarkupContent { Kind = MarkupKind.Markdown, Value = info.Markdown },
+            Range = new Microsoft.VisualStudio.LanguageServer.Protocol.Range
+            {
+                Start = new Position { Line = info.Range.Start.Line, Character = info.Range.Start.Character },
+                End = new Position { Line = info.Range.End.Line, Character = info.Range.End.Character },
+            },
+        });
     }
 
     [JsonRpcMethod("exit")]

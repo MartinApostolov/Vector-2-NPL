@@ -1,5 +1,6 @@
 namespace Vector.LanguageServer.Tests;
 
+using Microsoft.VisualStudio.LanguageServer.Protocol;
 using Newtonsoft.Json.Linq;
 using Vector.LanguageServer.Protocol;
 using Xunit;
@@ -7,7 +8,7 @@ using Xunit;
 public sealed class LanguageServerLifecycleTests
 {
     [Fact]
-    public async Task Initialize_ReturnsIdentityAndEmptyCapabilities()
+    public async Task Initialize_ReturnsIdentityAndEditorCapabilities()
     {
         var server = new VectorLanguageServer();
 
@@ -15,7 +16,10 @@ public sealed class LanguageServerLifecycleTests
 
         Assert.Equal(ServerLifecycleState.Initialized, server.State);
         Assert.Equal("Vector Language Server", result.ServerInfo.Name);
-        Assert.NotNull(result.Capabilities);
+        Assert.NotNull(result.Capabilities.TextDocumentSync);
+        CompletionOptions completion = Assert.IsType<CompletionOptions>(result.Capabilities.CompletionProvider);
+        Assert.Contains(".", Assert.IsType<string[]>(completion.TriggerCharacters));
+        Assert.Equal(true, result.Capabilities.HoverProvider);
     }
 
     [Fact]

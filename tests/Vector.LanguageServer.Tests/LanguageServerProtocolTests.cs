@@ -52,10 +52,20 @@ public sealed class LanguageServerProtocolTests
 
             await WriteMessageAsync(
                 process.StandardInput.BaseStream,
-                """{"jsonrpc":"2.0","id":2,"method":"shutdown"}""");
+                """{"jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{"textDocument":{"uri":"file:///C:/workspace/protocol.vec"},"position":{"line":0,"character":3}}}""");
+
+            using JsonDocument completionResponse = await ReadMessageAsync(process.StandardOutput.BaseStream);
+            Assert.Equal(2, completionResponse.RootElement.GetProperty("id").GetInt32());
+            Assert.Contains(
+                completionResponse.RootElement.GetProperty("result").EnumerateArray(),
+                item => item.GetProperty("label").GetString() == "let");
+
+            await WriteMessageAsync(
+                process.StandardInput.BaseStream,
+                """{"jsonrpc":"2.0","id":3,"method":"shutdown"}""");
 
             using JsonDocument shutdownResponse = await ReadMessageAsync(process.StandardOutput.BaseStream);
-            Assert.Equal(2, shutdownResponse.RootElement.GetProperty("id").GetInt32());
+            Assert.Equal(3, shutdownResponse.RootElement.GetProperty("id").GetInt32());
             Assert.Equal(JsonValueKind.Null, shutdownResponse.RootElement.GetProperty("result").ValueKind);
 
             await WriteMessageAsync(
