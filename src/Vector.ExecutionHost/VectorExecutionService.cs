@@ -136,7 +136,13 @@ public sealed class VectorExecutionService
             root = Directory.GetCurrentDirectory();
         }
 
-        return Path.GetFullPath(root);
+        string normalizedRoot = Path.GetFullPath(root);
+        if (request.ProgramRoot is not null && !Directory.Exists(normalizedRoot))
+        {
+            throw new DirectoryNotFoundException($"The Vector program root does not exist: '{normalizedRoot}'.");
+        }
+
+        return normalizedRoot;
     }
 
     private static VectorExecutionResponse Failure(VectorExecutionRequest request, VectorHostFailure failure) => new()

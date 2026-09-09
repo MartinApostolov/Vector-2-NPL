@@ -83,6 +83,71 @@ public sealed class VectorExecutionClientTests
             cancellation.Token));
     }
 
+    [Theory]
+    [InlineData("print(\"line endings\");\n42;")]
+    [InlineData("print(\"line endings\");\r\n42;")]
+    public async Task ExecuteAsync_SupportsLfAndCrlf(string source)
+    {
+        VectorExecutionResponse response = await CreateClient().ExecuteAsync(
+            new VectorExecutionRequest { Source = source });
+
+        Assert.True(response.Success);
+        Assert.Equal(["line endings"], response.Output);
+        Assert.Equal("42", response.Result);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SupportsHostAndSourcePathsWithSpacesAndUnicode()
+    {
+        string temporaryRoot = Path.Combine(
+            Path.GetTempPath(),
+            "Vector host üñîçødé " + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temporaryRoot);
+        try
+        {
+            string sourceHost = Path.GetDirectoryName(FindExecutionHost())!;
+            foreach (string sourceFile in Directory.EnumerateFiles(sourceHost))
+            {
+                File.Copy(sourceFile, Path.Combine(temporaryRoot, Path.GetFileName(sourceFile)));
+            }
+
+            var client = new VectorExecutionClient(
+                Path.Combine(temporaryRoot, "Vector.ExecutionHost.exe"),
+                TimeSpan.FromSeconds(10));
+            VectorExecutionResponse response = await client.ExecuteAsync(new VectorExecutionRequest
+            {
+                Source = "print(\"Здравей, Vector\");\n42;",
+                SourcePath = Path.Combine(temporaryRoot, "пример файл.vec"),
+                ProgramRoot = temporaryRoot,
+            });
+
+            Assert.True(response.Success);
+            Assert.Equal(["Здравей, Vector"], response.Output);
+        }
+        finally
+        {
+            Directory.Delete(temporaryRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ReportsInvalidPluginAcrossTheProcessBoundary()
+    {
+        string missingPlugin = Path.Combine(
+            Path.GetTempPath(),
+            "missing Vector plugin " + Guid.NewGuid().ToString("N"),
+            "plugin.dll");
+
+        VectorExecutionResponse response = await CreateClient().ExecuteAsync(new VectorExecutionRequest
+        {
+            Source = "42;",
+            PluginPaths = [missingPlugin],
+        });
+
+        Assert.False(response.Success);
+        Assert.Equal("plugin_load_failed", Assert.IsType<VectorHostFailure>(response.HostFailure).Code);
+    }
+
     private static VectorExecutionClient CreateClient(TimeSpan? timeout = null) => new(
         FindExecutionHost(),
         timeout ?? TimeSpan.FromSeconds(10));

@@ -184,6 +184,24 @@ public sealed class VectorExecutionServiceTests
         }
     }
 
+    [Fact]
+    public void MissingProgramRoot_ReturnsStructuredFailureWithoutExecuting()
+    {
+        string missingRoot = Path.Combine(Path.GetTempPath(), "missing-vector-execution-" + Guid.NewGuid().ToString("N"));
+        var request = new VectorExecutionRequest
+        {
+            Source = "print(\"must not run\");",
+            ProgramRoot = missingRoot,
+        };
+
+        VectorExecutionResponse response = new VectorExecutionService().Execute(request);
+
+        Assert.False(response.Success);
+        Assert.Empty(response.Output);
+        Assert.Equal("invalid_request", Assert.IsType<VectorHostFailure>(response.HostFailure).Code);
+        Assert.Contains("does not exist", response.HostFailure.Message, StringComparison.Ordinal);
+    }
+
     private static VectorExecutionRequest Request(
         string source,
         VectorExecutionEngine engine = VectorExecutionEngine.Interpreter,

@@ -85,6 +85,27 @@ public sealed class LanguageServerProtocolTests
 
             await WriteMessageAsync(
                 process.StandardInput.BaseStream,
+                """{"jsonrpc":"2.0","id":6,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///C:/workspace/protocol.vec"},"position":{"line":0,"character":16}}}""");
+
+            using JsonDocument hoverResponse = await ReadMessageAsync(process.StandardOutput.BaseStream);
+            Assert.Equal(6, hoverResponse.RootElement.GetProperty("id").GetInt32());
+            Assert.Contains(
+                "range(start, end)",
+                hoverResponse.RootElement.GetProperty("result").GetProperty("contents").GetProperty("value").GetString(),
+                StringComparison.Ordinal);
+
+            await WriteMessageAsync(
+                process.StandardInput.BaseStream,
+                """{"jsonrpc":"2.0","id":7,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"file:///C:/workspace/protocol.vec"}}}""");
+
+            using JsonDocument symbolsResponse = await ReadMessageAsync(process.StandardOutput.BaseStream);
+            Assert.Equal(7, symbolsResponse.RootElement.GetProperty("id").GetInt32());
+            Assert.Contains(
+                symbolsResponse.RootElement.GetProperty("result").EnumerateArray(),
+                item => item.GetProperty("name").GetString() == "value");
+
+            await WriteMessageAsync(
+                process.StandardInput.BaseStream,
                 """{"jsonrpc":"2.0","id":5,"method":"shutdown"}""");
 
             using JsonDocument shutdownResponse = await ReadMessageAsync(process.StandardOutput.BaseStream);
@@ -95,6 +116,58 @@ public sealed class LanguageServerProtocolTests
                 process.StandardInput.BaseStream,
                 """{"jsonrpc":"2.0","method":"exit"}""");
 
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await process.WaitForExitAsync(timeout.Token);
+            Assert.Equal(0, process.ExitCode);
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Process_RespectsLiveDiagnosticsEnvironmentSetting()
+    {
+        string executable = Path.Combine(AppContext.BaseDirectory, "Vector.LanguageServer.exe");
+        Assert.True(File.Exists(executable), $"Language server executable not found at '{executable}'.");
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo(executable)
+            {
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            },
+        };
+        process.StartInfo.Environment[VectorLanguageServerOptions.LiveDiagnosticsEnvironmentVariable] = "false";
+
+        Assert.True(process.Start());
+        try
+        {
+            await WriteMessageAsync(
+                process.StandardInput.BaseStream,
+                """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}""");
+            using JsonDocument initializeResponse = await ReadMessageAsync(process.StandardOutput.BaseStream);
+            Assert.Equal(1, initializeResponse.RootElement.GetProperty("id").GetInt32());
+            await WriteMessageAsync(process.StandardInput.BaseStream, """{"jsonrpc":"2.0","method":"initialized","params":{}}""");
+            await WriteMessageAsync(
+                process.StandardInput.BaseStream,
+                """{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/disabled.vec","languageId":"vector","version":1,"text":"let value = ;"}}}""");
+
+            using JsonDocument notification = await ReadMessageAsync(process.StandardOutput.BaseStream);
+            Assert.Equal("textDocument/publishDiagnostics", notification.RootElement.GetProperty("method").GetString());
+            Assert.Empty(notification.RootElement.GetProperty("params").GetProperty("diagnostics").EnumerateArray());
+
+            await WriteMessageAsync(process.StandardInput.BaseStream, """{"jsonrpc":"2.0","id":2,"method":"shutdown"}""");
+            using JsonDocument shutdownResponse = await ReadMessageAsync(process.StandardOutput.BaseStream);
+            Assert.Equal(2, shutdownResponse.RootElement.GetProperty("id").GetInt32());
+            await WriteMessageAsync(process.StandardInput.BaseStream, """{"jsonrpc":"2.0","method":"exit"}""");
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             await process.WaitForExitAsync(timeout.Token);
             Assert.Equal(0, process.ExitCode);

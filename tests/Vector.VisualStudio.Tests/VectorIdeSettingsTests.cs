@@ -96,4 +96,49 @@ public sealed class VectorIdeSettingsTests
         Assert.Equal([Path.GetFullPath(plugin)], run.PluginPaths);
         Assert.Empty(disassemble.PluginPaths);
     }
+
+    [Fact]
+    public async Task ConfiguredPluginPath_RunsOnlyThroughTheIsolatedHost()
+    {
+        string plugin = FindBuildOutput(
+            "tests",
+            "Vector.TestPlugin.Acceptance",
+            "Vector.TestPlugin.Acceptance.dll");
+        VectorIdeSettings settings = VectorIdeSettings.Default with { PluginPaths = [plugin] };
+        VectorExecutionRequest request = Assert.IsType<VectorExecutionRequest>(
+            VectorExecutionRequestFactory.Create(
+                "import accept.math;\naccept.math.double(21);",
+                null,
+                settings).Request);
+
+        VectorExecutionResponse response = await new VectorExecutionClient(
+            FindBuildOutput("src", "Vector.ExecutionHost", "Vector.ExecutionHost.exe"),
+            TimeSpan.FromSeconds(10)).ExecuteAsync(request);
+
+        Assert.True(response.Success);
+        Assert.Equal("42", response.Result);
+    }
+
+    private static string FindBuildOutput(params string[] path)
+    {
+        for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            if (!File.Exists(Path.Combine(directory.FullName, "Vector.sln")))
+            {
+                continue;
+            }
+
+            string result = Path.Combine(
+                directory.FullName,
+                Path.Combine(path[..^1]),
+                "bin",
+                "Release",
+                "net8.0",
+                path[^1]);
+            Assert.True(File.Exists(result), $"Expected Release build output at '{result}'.");
+            return result;
+        }
+
+        throw new InvalidOperationException("Could not locate Vector.sln from the test output directory.");
+    }
 }
