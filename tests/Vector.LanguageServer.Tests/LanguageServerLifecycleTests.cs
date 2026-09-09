@@ -22,6 +22,8 @@ public sealed class LanguageServerLifecycleTests
         Assert.Equal(true, result.Capabilities.HoverProvider);
         Assert.Equal(true, result.Capabilities.DocumentSymbolProvider);
         Assert.Equal(true, result.Capabilities.DefinitionProvider);
+        SignatureHelpOptions signatureHelp = Assert.IsType<SignatureHelpOptions>(result.Capabilities.SignatureHelpProvider);
+        Assert.Equal(["(", ","], Assert.IsType<string[]>(signatureHelp.TriggerCharacters));
     }
 
     [Fact]

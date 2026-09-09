@@ -44,7 +44,7 @@ public sealed class LanguageServerProtocolTests
                 """{"jsonrpc":"2.0","method":"initialized","params":{}}""");
             await WriteMessageAsync(
                 process.StandardInput.BaseStream,
-                """{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/protocol.vec","languageId":"vector","version":1,"text":"let value = ;"}}}""");
+                """{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/protocol.vec","languageId":"vector","version":1,"text":"let value = ; range("}}}""");
 
             using JsonDocument diagnosticsNotification = await ReadMessageAsync(process.StandardOutput.BaseStream);
             Assert.Equal("textDocument/publishDiagnostics", diagnosticsNotification.RootElement.GetProperty("method").GetString());
@@ -75,10 +75,20 @@ public sealed class LanguageServerProtocolTests
 
             await WriteMessageAsync(
                 process.StandardInput.BaseStream,
-                """{"jsonrpc":"2.0","id":4,"method":"shutdown"}""");
+                """{"jsonrpc":"2.0","id":4,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///C:/workspace/protocol.vec"},"position":{"line":0,"character":20}}}""");
+
+            using JsonDocument signatureResponse = await ReadMessageAsync(process.StandardOutput.BaseStream);
+            Assert.Equal(4, signatureResponse.RootElement.GetProperty("id").GetInt32());
+            Assert.Equal(
+                "range(start, end)",
+                signatureResponse.RootElement.GetProperty("result").GetProperty("signatures")[0].GetProperty("label").GetString());
+
+            await WriteMessageAsync(
+                process.StandardInput.BaseStream,
+                """{"jsonrpc":"2.0","id":5,"method":"shutdown"}""");
 
             using JsonDocument shutdownResponse = await ReadMessageAsync(process.StandardOutput.BaseStream);
-            Assert.Equal(4, shutdownResponse.RootElement.GetProperty("id").GetInt32());
+            Assert.Equal(5, shutdownResponse.RootElement.GetProperty("id").GetInt32());
             Assert.Equal(JsonValueKind.Null, shutdownResponse.RootElement.GetProperty("result").ValueKind);
 
             await WriteMessageAsync(

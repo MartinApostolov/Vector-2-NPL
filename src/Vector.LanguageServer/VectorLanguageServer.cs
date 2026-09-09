@@ -9,6 +9,7 @@ using Vector.LanguageServer.Protocol;
 using Vector.Analysis.Documents;
 using Vector.Analysis.IntelliSense;
 using Vector.Analysis.Navigation;
+using Vector.Analysis.SignatureHelp;
 
 public sealed class VectorLanguageServer
 {
@@ -18,6 +19,7 @@ public sealed class VectorLanguageServer
     private readonly VectorCompletionService completionService;
     private readonly VectorHoverService hoverService = new();
     private readonly VectorDefinitionService definitionService;
+    private readonly VectorSignatureHelpService signatureHelpService;
     private ServerLifecycleState state;
 
     public ServerLifecycleState State
@@ -40,6 +42,7 @@ public sealed class VectorLanguageServer
         this.documents = new VectorDocumentService(client ?? NullLanguageClient.Instance);
         this.completionService = new VectorCompletionService(this.documents.Modules);
         this.definitionService = new VectorDefinitionService(this.documents.Modules);
+        this.signatureHelpService = new VectorSignatureHelpService(this.documents.Modules);
     }
 
     [JsonRpcMethod("initialize", UseSingleObjectParameterDeserialization = true)]
@@ -72,6 +75,7 @@ public sealed class VectorLanguageServer
                 HoverProvider = true,
                 DocumentSymbolProvider = true,
                 DefinitionProvider = true,
+                SignatureHelpProvider = new SignatureHelpOptions { TriggerCharacters = ["(", ","] },
             },
             ServerInfo = new VectorServerInfo
             {
@@ -220,6 +224,45 @@ public sealed class VectorLanguageServer
                     Character = definition.Range.End.Character,
                 },
             },
+        });
+    }
+
+    [JsonRpcMethod(Methods.TextDocumentSignatureHelpName, UseSingleObjectParameterDeserialization = true)]
+    public Task<SignatureHelp?> SignatureHelpAsync(
+        TextDocumentPositionParams parameters,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        this.RequireState(ServerLifecycleState.Initialized, Methods.TextDocumentSignatureHelpName);
+        if (!this.documents.TryGetDocument(parameters.TextDocument.Uri, out VectorAnalysisResult? analysis)
+            || analysis is null)
+        {
+            return Task.FromResult<SignatureHelp?>(null);
+        }
+
+        int offset = analysis.Document.LineMap.GetOffset(
+            new Analysis.Text.TextPosition(parameters.Position.Line, parameters.Position.Character));
+        VectorSignatureInfo? info = this.signatureHelpService.GetSignatureHelp(analysis, offset, cancellationToken);
+        if (info is null)
+        {
+            return Task.FromResult<SignatureHelp?>(null);
+        }
+
+        return Task.FromResult<SignatureHelp?>(new SignatureHelp
+        {
+            ActiveSignature = 0,
+            ActiveParameter = info.ActiveParameter,
+            Signatures =
+            [
+                new SignatureInformation
+                {
+                    Label = info.Label,
+                    Documentation = info.Documentation,
+                    Parameters = info.Parameters
+                        .Select(parameter => new ParameterInformation { Label = parameter })
+                        .ToArray(),
+                },
+            ],
         });
     }
 
