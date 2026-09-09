@@ -44,6 +44,14 @@ public sealed class LanguageServerProtocolTests
                 """{"jsonrpc":"2.0","method":"initialized","params":{}}""");
             await WriteMessageAsync(
                 process.StandardInput.BaseStream,
+                """{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/protocol.vec","languageId":"vector","version":1,"text":"let value = ;"}}}""");
+
+            using JsonDocument diagnosticsNotification = await ReadMessageAsync(process.StandardOutput.BaseStream);
+            Assert.Equal("textDocument/publishDiagnostics", diagnosticsNotification.RootElement.GetProperty("method").GetString());
+            Assert.NotEmpty(diagnosticsNotification.RootElement.GetProperty("params").GetProperty("diagnostics").EnumerateArray());
+
+            await WriteMessageAsync(
+                process.StandardInput.BaseStream,
                 """{"jsonrpc":"2.0","id":2,"method":"shutdown"}""");
 
             using JsonDocument shutdownResponse = await ReadMessageAsync(process.StandardOutput.BaseStream);

@@ -1,6 +1,6 @@
 namespace Vector.LanguageServer.Tests;
 
-using System.Text.Json;
+using Newtonsoft.Json.Linq;
 using Vector.LanguageServer.Protocol;
 using Xunit;
 
@@ -11,7 +11,7 @@ public sealed class LanguageServerLifecycleTests
     {
         var server = new VectorLanguageServer();
 
-        InitializeResult result = await server.InitializeAsync(CreateInitializeParams(), CancellationToken.None);
+        VectorInitializeResult result = await server.InitializeAsync(CreateInitializeParams(), CancellationToken.None);
 
         Assert.Equal(ServerLifecycleState.Initialized, server.State);
         Assert.Equal("Vector Language Server", result.ServerInfo.Name);
@@ -88,9 +88,5 @@ public sealed class LanguageServerLifecycleTests
         Assert.Equal(ServerLifecycleState.Created, server.State);
     }
 
-    private static InitializeParams CreateInitializeParams()
-    {
-        using JsonDocument document = JsonDocument.Parse("{}");
-        return new InitializeParams(null, null, document.RootElement.Clone());
-    }
+    private static JToken CreateInitializeParams() => JObject.Parse("{}");
 }

@@ -1,13 +1,17 @@
 namespace Vector.LanguageServer;
 
 using System.Reflection;
+using Microsoft.VisualStudio.LanguageServer.Protocol;
+using Newtonsoft.Json.Linq;
 using StreamJsonRpc;
+using Vector.LanguageServer.Documents;
 using Vector.LanguageServer.Protocol;
 
 public sealed class VectorLanguageServer
 {
     private readonly object stateLock = new();
     private readonly TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly VectorDocumentService documents;
     private ServerLifecycleState state;
 
     public ServerLifecycleState State
@@ -25,8 +29,13 @@ public sealed class VectorLanguageServer
 
     public int ExitCode { get; private set; }
 
+    public VectorLanguageServer(ILanguageClient? client = null)
+    {
+        this.documents = new VectorDocumentService(client ?? NullLanguageClient.Instance);
+    }
+
     [JsonRpcMethod("initialize", UseSingleObjectParameterDeserialization = true)]
-    public Task<InitializeResult> InitializeAsync(InitializeParams request, CancellationToken cancellationToken)
+    public Task<VectorInitializeResult> InitializeAsync(JToken request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
@@ -42,7 +51,22 @@ public sealed class VectorLanguageServer
         }
 
         string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
-        return Task.FromResult(new InitializeResult(new ServerCapabilities(), new ServerInfo("Vector Language Server", version)));
+        return Task.FromResult(new VectorInitializeResult
+        {
+            Capabilities = new ServerCapabilities
+            {
+                TextDocumentSync = new TextDocumentSyncOptions
+                {
+                    OpenClose = true,
+                    Change = TextDocumentSyncKind.Full,
+                },
+            },
+            ServerInfo = new VectorServerInfo
+            {
+                Name = "Vector Language Server",
+                Version = version,
+            },
+        });
     }
 
     [JsonRpcMethod("initialized", UseSingleObjectParameterDeserialization = true)]
@@ -69,6 +93,28 @@ public sealed class VectorLanguageServer
         }
 
         return Task.FromResult<object?>(null);
+    }
+
+    [JsonRpcMethod(Methods.TextDocumentDidOpenName, UseSingleObjectParameterDeserialization = true)]
+    public Task DidOpenAsync(DidOpenTextDocumentParams parameters, CancellationToken cancellationToken)
+    {
+        this.RequireState(ServerLifecycleState.Initialized, Methods.TextDocumentDidOpenName);
+        return this.documents.OpenAsync(parameters.TextDocument, cancellationToken);
+    }
+
+    [JsonRpcMethod(Methods.TextDocumentDidChangeName, UseSingleObjectParameterDeserialization = true)]
+    public Task DidChangeAsync(DidChangeTextDocumentParams parameters, CancellationToken cancellationToken)
+    {
+        this.RequireState(ServerLifecycleState.Initialized, Methods.TextDocumentDidChangeName);
+        return this.documents.ChangeAsync(parameters.TextDocument, parameters.ContentChanges, cancellationToken);
+    }
+
+    [JsonRpcMethod(Methods.TextDocumentDidCloseName, UseSingleObjectParameterDeserialization = true)]
+    public Task DidCloseAsync(DidCloseTextDocumentParams parameters, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        this.RequireState(ServerLifecycleState.Initialized, Methods.TextDocumentDidCloseName);
+        return this.documents.CloseAsync(parameters.TextDocument);
     }
 
     [JsonRpcMethod("exit")]
@@ -108,5 +154,12 @@ public sealed class VectorLanguageServer
                 throw new InvalidOperationException($"Cannot process '{operation}' while the language server is {this.state}.");
             }
         }
+    }
+
+    private sealed class NullLanguageClient : ILanguageClient
+    {
+        public static NullLanguageClient Instance { get; } = new();
+
+        public Task PublishDiagnosticsAsync(PublishDiagnosticParams parameters) => Task.CompletedTask;
     }
 }

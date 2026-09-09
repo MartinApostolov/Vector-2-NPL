@@ -9,10 +9,10 @@ internal static class Program
         await using Stream input = Console.OpenStandardInput();
         await using Stream output = Console.OpenStandardOutput();
 
-        var formatter = new SystemTextJsonFormatter();
+        var formatter = new JsonMessageFormatter();
         using var handler = new HeaderDelimitedMessageHandler(output, input, formatter);
         using var rpc = new JsonRpc(handler);
-        var server = new VectorLanguageServer();
+        var server = new VectorLanguageServer(new JsonRpcLanguageClient(rpc));
 
         rpc.AddLocalRpcTarget(server);
         rpc.Disconnected += (_, _) => server.NotifyDisconnected();

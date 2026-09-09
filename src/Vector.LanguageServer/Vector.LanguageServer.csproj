@@ -10,7 +10,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.LanguageServer.Protocol" Version="17.2.8" />
     <PackageReference Include="StreamJsonRpc" Version="2.22.23" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Vector.Analysis\Vector.Analysis.csproj" />
   </ItemGroup>
 
 </Project>
