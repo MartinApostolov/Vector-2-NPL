@@ -1,6 +1,7 @@
 namespace Vector.Analysis.Workspace;
 
 using Vector.Analysis.Documents;
+using Vector.Analysis.Modules;
 
 public sealed class VectorWorkspace
 {
@@ -11,7 +12,10 @@ public sealed class VectorWorkspace
     public VectorWorkspace(VectorAnalyzer? analyzer = null)
     {
         this.analyzer = analyzer ?? new VectorAnalyzer();
+        this.Modules = new VectorModuleIndex(this.analyzer);
     }
+
+    public VectorModuleIndex Modules { get; }
 
     public IReadOnlyList<VectorAnalysisResult> Documents
     {
@@ -42,6 +46,7 @@ public sealed class VectorWorkspace
             }
 
             this.documents[document.Uri] = analysis;
+            this.Modules.TrackOpenDocument(analysis);
             result = analysis;
             return true;
         }
@@ -61,7 +66,13 @@ public sealed class VectorWorkspace
         ArgumentNullException.ThrowIfNull(uri);
         lock (this.gate)
         {
-            return this.documents.Remove(uri);
+            if (!this.documents.Remove(uri, out VectorAnalysisResult? analysis))
+            {
+                return false;
+            }
+
+            this.Modules.UntrackOpenDocument(analysis);
+            return true;
         }
     }
 }

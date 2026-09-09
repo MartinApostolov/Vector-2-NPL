@@ -14,7 +14,7 @@ public sealed class VectorLanguageServer
     private readonly object stateLock = new();
     private readonly TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly VectorDocumentService documents;
-    private readonly VectorCompletionService completionService = new();
+    private readonly VectorCompletionService completionService;
     private readonly VectorHoverService hoverService = new();
     private ServerLifecycleState state;
 
@@ -36,6 +36,7 @@ public sealed class VectorLanguageServer
     public VectorLanguageServer(ILanguageClient? client = null)
     {
         this.documents = new VectorDocumentService(client ?? NullLanguageClient.Instance);
+        this.completionService = new VectorCompletionService(this.documents.Modules);
     }
 
     [JsonRpcMethod("initialize", UseSingleObjectParameterDeserialization = true)]

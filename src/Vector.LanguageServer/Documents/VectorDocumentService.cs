@@ -3,6 +3,7 @@ namespace Vector.LanguageServer.Documents;
 using Microsoft.VisualStudio.LanguageServer.Protocol;
 using Vector.Analysis.Documents;
 using Vector.Analysis.Workspace;
+using Vector.Analysis.Modules;
 using Vector.Core.Diagnostics;
 using CoreDiagnosticSeverity = Vector.Core.Diagnostics.DiagnosticSeverity;
 using LspDiagnostic = Microsoft.VisualStudio.LanguageServer.Protocol.Diagnostic;
@@ -25,11 +26,13 @@ internal sealed class VectorDocumentService
     public bool TryGetDocument(Uri uri, out VectorAnalysisResult? result) =>
         this.workspace.TryGetDocument(uri, out result);
 
+    public VectorModuleIndex Modules => this.workspace.Modules;
+
     public async Task OpenAsync(TextDocumentItem document, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(document);
         this.CancelPending(document.Uri);
-        VectorDocumentSnapshot snapshot = CreateSnapshot(document.Uri, document.Text, document.Version);
+        VectorDocumentSnapshot snapshot = this.CreateSnapshot(document.Uri, document.Text, document.Version);
         if (this.workspace.TryUpdateDocument(snapshot, out VectorAnalysisResult result, cancellationToken))
         {
             await this.PublishAsync(result).ConfigureAwait(false);
@@ -63,7 +66,7 @@ internal sealed class VectorDocumentService
         try
         {
             await Task.Delay(ChangeDelay, pending.Token).ConfigureAwait(false);
-            VectorDocumentSnapshot snapshot = CreateSnapshot(document.Uri, contentChanges[^1].Text, document.Version);
+            VectorDocumentSnapshot snapshot = this.CreateSnapshot(document.Uri, contentChanges[^1].Text, document.Version);
             if (this.workspace.TryUpdateDocument(snapshot, out VectorAnalysisResult result, pending.Token))
             {
                 await this.PublishAsync(result).ConfigureAwait(false);
@@ -99,11 +102,12 @@ internal sealed class VectorDocumentService
         }).ConfigureAwait(false);
     }
 
-    private static VectorDocumentSnapshot CreateSnapshot(Uri uri, string text, int version)
+    private VectorDocumentSnapshot CreateSnapshot(Uri uri, string text, int version)
     {
         if (uri.IsFile)
         {
-            return VectorDocumentSnapshot.FromFile(uri.LocalPath, text, version);
+            string? inheritedRoot = this.workspace.Modules.GetInheritedProgramRoot(uri.LocalPath);
+            return VectorDocumentSnapshot.FromFile(uri.LocalPath, text, version, inheritedRoot);
         }
 
         return new VectorDocumentSnapshot(uri, uri.ToString(), text, version);

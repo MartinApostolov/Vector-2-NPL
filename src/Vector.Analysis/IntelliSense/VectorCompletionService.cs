@@ -1,11 +1,18 @@
 namespace Vector.Analysis.IntelliSense;
 
 using Vector.Analysis.Documents;
+using Vector.Analysis.Modules;
 using Vector.Core.Syntax.Statements;
 
 public sealed class VectorCompletionService
 {
     private readonly VectorSymbolCompletionService symbols = new();
+    private readonly VectorModuleCompletionService? modules;
+
+    public VectorCompletionService(VectorModuleIndex? modules = null)
+    {
+        this.modules = modules is null ? null : new VectorModuleCompletionService(modules);
+    }
 
     public IReadOnlyList<VectorCatalogItem> GetCompletions(VectorAnalysisResult analysis, int utf16Offset)
     {
@@ -25,10 +32,16 @@ public sealed class VectorCompletionService
                 .SingleOrDefault(candidate => candidate.QualifiedName == qualifier);
             if (module is null)
             {
-                return VectorLanguageCatalog.StandardModules
+                VectorCatalogItem[] standardModules = VectorLanguageCatalog.StandardModules
                     .Where(candidate => candidate.QualifiedName.StartsWith(prefix, StringComparison.Ordinal))
                     .Select(ToCatalogItem)
                     .ToArray();
+                if (standardModules.Length > 0 || this.modules is null)
+                {
+                    return standardModules;
+                }
+
+                return this.modules.GetCompletions(analysis, qualifier, memberPrefix);
             }
 
             bool imported = analysis.Syntax.Statements.OfType<ImportStatement>()

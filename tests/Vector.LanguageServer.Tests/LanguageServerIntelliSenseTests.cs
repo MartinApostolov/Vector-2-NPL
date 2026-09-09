@@ -115,6 +115,33 @@ public sealed class LanguageServerIntelliSenseTests
         Assert.Equal(SymbolKind.Function, outer.Children[1].Kind);
     }
 
+    [Fact]
+    public async Task Completion_MapsLocalModuleMembersWithoutExecutingTheModule()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "vector-lsp-module-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "lib"));
+        try
+        {
+            string modulePath = Path.Combine(root, "lib", "geometry.vec");
+            await File.WriteAllTextAsync(modulePath, "function area(width, height) { return width * height; }");
+            string mainPath = Path.Combine(root, "main.vec");
+            Uri uri = new(mainPath);
+            const string source = "import lib.geometry;\nlib.geometry.";
+            VectorLanguageServer server = await CreateServerAsync();
+            await OpenAsync(server, uri, source);
+
+            CompletionItem item = Assert.Single(await CompleteAsync(server, uri, 1, "lib.geometry.".Length));
+
+            Assert.Equal("area", item.Label);
+            Assert.Equal(CompletionItemKind.Function, item.Kind);
+            Assert.Equal("area(width, height)", item.Detail);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static async Task<VectorLanguageServer> CreateServerAsync()
     {
         var server = new VectorLanguageServer();
