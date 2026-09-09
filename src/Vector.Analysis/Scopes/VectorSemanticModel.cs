@@ -5,6 +5,8 @@ using Vector.Analysis.Symbols;
 public sealed class VectorSemanticModel
 {
     private readonly VectorSymbol[] symbols;
+    private VectorReference[] references = [];
+    private VectorQualifiedReference[] qualifiedReferences = [];
 
     internal VectorSemanticModel(VectorScope rootScope, IEnumerable<VectorSymbol> symbols)
     {
@@ -15,6 +17,10 @@ public sealed class VectorSemanticModel
     public VectorScope RootScope { get; }
 
     public IReadOnlyList<VectorSymbol> Symbols => this.symbols;
+
+    public IReadOnlyList<VectorReference> References => this.references;
+
+    public IReadOnlyList<VectorQualifiedReference> QualifiedReferences => this.qualifiedReferences;
 
     public VectorScope GetScopeAt(int utf16Offset)
     {
@@ -58,5 +64,20 @@ public sealed class VectorSemanticModel
         }
 
         return visible;
+    }
+
+    public bool TryResolveSymbol(string name, int utf16Offset, out VectorSymbol? symbol)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        symbol = this.GetVisibleSymbols(utf16Offset).FirstOrDefault(candidate => candidate.Name == name);
+        return symbol is not null;
+    }
+
+    internal void SetReferences(
+        IEnumerable<VectorReference> references,
+        IEnumerable<VectorQualifiedReference> qualifiedReferences)
+    {
+        this.references = references.ToArray();
+        this.qualifiedReferences = qualifiedReferences.ToArray();
     }
 }

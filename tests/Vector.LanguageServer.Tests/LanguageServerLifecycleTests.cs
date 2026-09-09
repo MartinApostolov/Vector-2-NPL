@@ -21,6 +21,7 @@ public sealed class LanguageServerLifecycleTests
         Assert.Contains(".", Assert.IsType<string[]>(completion.TriggerCharacters));
         Assert.Equal(true, result.Capabilities.HoverProvider);
         Assert.Equal(true, result.Capabilities.DocumentSymbolProvider);
+        Assert.Equal(true, result.Capabilities.DefinitionProvider);
     }
 
     [Fact]

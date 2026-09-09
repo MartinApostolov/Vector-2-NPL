@@ -8,6 +8,7 @@ using Vector.LanguageServer.Documents;
 using Vector.LanguageServer.Protocol;
 using Vector.Analysis.Documents;
 using Vector.Analysis.IntelliSense;
+using Vector.Analysis.Navigation;
 
 public sealed class VectorLanguageServer
 {
@@ -16,6 +17,7 @@ public sealed class VectorLanguageServer
     private readonly VectorDocumentService documents;
     private readonly VectorCompletionService completionService;
     private readonly VectorHoverService hoverService = new();
+    private readonly VectorDefinitionService definitionService;
     private ServerLifecycleState state;
 
     public ServerLifecycleState State
@@ -37,6 +39,7 @@ public sealed class VectorLanguageServer
     {
         this.documents = new VectorDocumentService(client ?? NullLanguageClient.Instance);
         this.completionService = new VectorCompletionService(this.documents.Modules);
+        this.definitionService = new VectorDefinitionService(this.documents.Modules);
     }
 
     [JsonRpcMethod("initialize", UseSingleObjectParameterDeserialization = true)]
@@ -68,6 +71,7 @@ public sealed class VectorLanguageServer
                 CompletionProvider = new CompletionOptions { TriggerCharacters = ["."] },
                 HoverProvider = true,
                 DocumentSymbolProvider = true,
+                DefinitionProvider = true,
             },
             ServerInfo = new VectorServerInfo
             {
@@ -179,6 +183,44 @@ public sealed class VectorLanguageServer
             .Select(symbol => ToDocumentSymbol(analysis, symbol))
             .ToArray();
         return Task.FromResult(symbols);
+    }
+
+    [JsonRpcMethod(Methods.TextDocumentDefinitionName, UseSingleObjectParameterDeserialization = true)]
+    public Task<Location?> DefinitionAsync(TextDocumentPositionParams parameters, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        this.RequireState(ServerLifecycleState.Initialized, Methods.TextDocumentDefinitionName);
+        if (!this.documents.TryGetDocument(parameters.TextDocument.Uri, out VectorAnalysisResult? analysis)
+            || analysis is null)
+        {
+            return Task.FromResult<Location?>(null);
+        }
+
+        int offset = analysis.Document.LineMap.GetOffset(
+            new Analysis.Text.TextPosition(parameters.Position.Line, parameters.Position.Character));
+        VectorDefinitionLocation? definition = this.definitionService.GetDefinition(analysis, offset, cancellationToken);
+        if (definition is null)
+        {
+            return Task.FromResult<Location?>(null);
+        }
+
+        return Task.FromResult<Location?>(new Location
+        {
+            Uri = definition.Uri,
+            Range = new Microsoft.VisualStudio.LanguageServer.Protocol.Range
+            {
+                Start = new Position
+                {
+                    Line = definition.Range.Start.Line,
+                    Character = definition.Range.Start.Character,
+                },
+                End = new Position
+                {
+                    Line = definition.Range.End.Line,
+                    Character = definition.Range.End.Character,
+                },
+            },
+        });
     }
 
     [JsonRpcMethod(Methods.TextDocumentHoverName, UseSingleObjectParameterDeserialization = true)]

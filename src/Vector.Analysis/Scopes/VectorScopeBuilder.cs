@@ -25,7 +25,9 @@ internal sealed class VectorScopeBuilder
         SourceSpan rootSpan = document.SourceText.GetSpan(0, document.Text.Length);
         var root = new VectorScope(VectorScopeKind.Module, rootSpan, parent: null, includesEnd: true);
         builder.VisitStatements(syntax.Statements, root, containingSymbol: null);
-        return new VectorSemanticModel(root, builder.symbols);
+        var model = new VectorSemanticModel(root, builder.symbols);
+        VectorReferenceCollector.Populate(document, syntax, model);
+        return model;
     }
 
     private void VisitStatements(

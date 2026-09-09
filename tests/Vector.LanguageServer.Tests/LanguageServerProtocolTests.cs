@@ -62,10 +62,23 @@ public sealed class LanguageServerProtocolTests
 
             await WriteMessageAsync(
                 process.StandardInput.BaseStream,
-                """{"jsonrpc":"2.0","id":3,"method":"shutdown"}""");
+                """{"jsonrpc":"2.0","id":3,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///C:/workspace/protocol.vec"},"position":{"line":0,"character":5}}}""");
+
+            using JsonDocument definitionResponse = await ReadMessageAsync(process.StandardOutput.BaseStream);
+            Assert.Equal(3, definitionResponse.RootElement.GetProperty("id").GetInt32());
+            Assert.Equal(
+                "file:///C:/workspace/protocol.vec",
+                definitionResponse.RootElement.GetProperty("result").GetProperty("uri").GetString());
+            Assert.Equal(
+                4,
+                definitionResponse.RootElement.GetProperty("result").GetProperty("range").GetProperty("start").GetProperty("character").GetInt32());
+
+            await WriteMessageAsync(
+                process.StandardInput.BaseStream,
+                """{"jsonrpc":"2.0","id":4,"method":"shutdown"}""");
 
             using JsonDocument shutdownResponse = await ReadMessageAsync(process.StandardOutput.BaseStream);
-            Assert.Equal(3, shutdownResponse.RootElement.GetProperty("id").GetInt32());
+            Assert.Equal(4, shutdownResponse.RootElement.GetProperty("id").GetInt32());
             Assert.Equal(JsonValueKind.Null, shutdownResponse.RootElement.GetProperty("result").ValueKind);
 
             await WriteMessageAsync(
