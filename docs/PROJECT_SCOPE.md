@@ -1,6 +1,6 @@
 # Vector Project Scope
 
-**Status:** Required interpreter MVP complete; native-library foundation, Standard Library + Linear Algebra v1, Controlled External C# Plugin Support v1, and Bytecode Compiler and Virtual Machine v1 stretch phases complete; later extensions remain planned below.
+**Status:** Required interpreter MVP, native-library foundation, Standard Library + Linear Algebra v1, Controlled External C# Plugin Support v1, Bytecode Compiler and Virtual Machine v1, and Visual Studio Community 2026 Extension v1 are complete; later extensions remain planned below.
 
 ### Final submission status
 
@@ -12,10 +12,11 @@
 - Vector/matrix functionality
 - External C# plugin support
 - Bytecode compiler and VM
+- Visual Studio Community 2026 extension
 
 **Future:**
 
-- Visual Studio Community extension
+- VS Code extension reusing the shared language server and execution host
 - Package/dependency management if useful
 - Experimental natural-language translation
 
@@ -319,31 +320,34 @@ optimization are not part of this completed phase. Locals and closures currently
 existing environment model for semantic correctness; they may later be optimized to slots
 or upvalues without changing Vector-language behavior.
 
-The next major future stretch goal would be Section 3.6, the Visual Studio Community Extension.
+The Visual Studio Community extension described in Section 3.6 is complete on the
+`visual-studio-extension` branch.
 
 ### 3.6 Visual Studio Community Extension
 
-A Visual Studio Community extension could make Vector available as an
-installable VSIX package and provide editor integration for `.vec` files.
+The Visual Studio Community 2026 extension makes Vector available as an installable VSIX
+and provides editor integration for `.vec` files.
 
-The initial extension could include:
+The completed v1 extension includes:
 
 - Vector file recognition and syntax highlighting
 - Automatic indentation, bracket matching, and comment support
-- Commands to run or check the current Vector file
-- Syntax and semantic diagnostics displayed in the editor
+- Commands to run the current in-memory buffer with the interpreter or VM and to disassemble it without execution
+- Live lexer/parser diagnostics displayed through LSP
 - Output from the Vector runtime inside Visual Studio
 - Awareness of Vector modules and library-qualified names
-- Later support for completion, hover information, and navigation through a
-  shared language server
+- Completion, hover, document symbols, local-module intelligence, definition, signature help, Find All References, and conservative Rename through a shared language server
 
-The extension would reuse the existing Vector core, CLI, diagnostics, runtime,
-and library metadata rather than duplicate the language implementation. This
-would also allow a future natural-language layer to generate Vector code,
-display it for inspection, and run it through the same tooling.
+The extension reuses `Vector.Core`, `Vector.Analysis`, `Vector.LanguageServer`,
+`Vector.ExecutionProtocol`, and `Vector.ExecutionHost` rather than duplicating the
+language implementation. Static analysis never executes source or loads plugins. This
+also allows a future natural-language layer to generate Vector code outside either
+editor, display/analyze it for inspection, and leave execution as an explicit action.
 
-A custom Visual Studio project system, integrated debugger, and deployment
-interface are outside the initial extension goal.
+A custom Visual Studio project system, integrated debugger, package manager, VS Code
+client, and NPL translator are outside this completed extension phase. See
+[VISUAL_STUDIO_EXTENSION.md](VISUAL_STUDIO_EXTENSION.md) for the exact feature and
+limitation list.
 
 ### 3.7 Package and Dependency Management
 
@@ -439,11 +443,12 @@ The required interpreter MVP is complete. Post-MVP status and remaining priority
    library interface, explicit trusted DLL loading, and versioned registration.
 6. **Complete:** bytecode compiler and stack-based virtual machine using the same
    runtime values, callable contracts, module system, and library boundary.
-7. **Future:** build the Visual Studio Community extension on top of the stable
-   language, diagnostics, runtime, and library metadata.
-8. **Future:** add package/dependency management if the external library ecosystem
+7. **Complete:** Visual Studio Community 2026 extension using the shared analysis,
+   stdio language server, and isolated execution host.
+8. **Future:** build a VS Code client over the same editor-independent services.
+9. **Future:** add package/dependency management if the external library ecosystem
    makes it useful.
-9. **Future:** prototype experimental natural-language translation last, targeting
+10. **Future:** prototype experimental natural-language translation last, targeting
    the formal Vector language and its established libraries.
 
 The exact size of each stretch goal should still be reconsidered against

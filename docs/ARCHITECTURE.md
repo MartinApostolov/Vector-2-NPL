@@ -1,6 +1,6 @@
 # Vector Architecture
 
-**Status:** Submission architecture overview  
+**Status:** Runtime and Visual Studio tooling architecture overview
 **Runtime:** C# / .NET 8  
 **Execution backends:** Tree-walking interpreter and stack-based bytecode VM
 
@@ -28,6 +28,29 @@ Vector source ----->| Lexer / Parser |
                  Modules / Native Calls
                             |
          Standard Library / External Plugins
+```
+
+Editor tooling is layered around—not inside—the formal language runtime:
+
+```text
+                         Vector.Core
+                             ^
+                             |
+                       Vector.Analysis
+                             ^
+                             |
+                    Vector.LanguageServer
+                             ^
+                             |
+                    Vector.VisualStudio
+                             |
+                 Visual Studio Community 2026
+
+Explicit run command -> Vector.ExecutionProtocol -> Vector.ExecutionHost
+                                                    /              \
+                                           Interpreter             VM
+                                                    \              /
+                                                     Vector.Core
 ```
 
 The tree-walking interpreter remains the default and semantic reference implementation.
@@ -196,7 +219,29 @@ allowing VM failures to map back to Vector source. Imported module failures keep
 imported file's source identity, and the CLI formats available file, line, column, source
 line, and marker information for the user.
 
-## 10. Key design decisions
+## 10. Editor-independent analysis and Visual Studio integration
+
+`Vector.Analysis` analyzes physical or in-memory/generated source without executing it. It
+reuses the formal `Vector.Core` lexer/parser and adds workspace snapshots, UTF-16 line
+maps, lexical scopes, source symbols/references, local-module indexing, completion, hover,
+document structure, definition, signature help, references, and conservative rename.
+
+`Vector.LanguageServer` exposes that same model through standard stdio LSP requests and
+notifications. It owns document versions, rapid-edit cancellation, diagnostic publication,
+and server lifecycle but contains no editor API. This allows another editor to reuse the
+same process.
+
+`Vector.VisualStudio` is a thin out-of-process VisualStudio.Extensibility shell. It
+registers `.vec`, a TextMate grammar and language configuration, settings, menu commands,
+the LSP subprocess, and the Vector Output channel. Explicit run/disassemble commands send
+the current in-memory buffer to `Vector.ExecutionHost` through `Vector.ExecutionProtocol`.
+The host—not Visual Studio—loads trusted configured plugins and invokes the existing
+interpreter or VM.
+
+The complete feature, build, package, and safety documentation is in
+[VISUAL_STUDIO_EXTENSION.md](VISUAL_STUDIO_EXTENSION.md).
+
+## 11. Key design decisions
 
 - **One language, two backends.** The interpreter stays the semantic reference and the VM
   targets the same AST and observable behavior.
@@ -213,21 +258,26 @@ line, and marker information for the user.
 - **Natural language remains outside the formal core.** A future NLP layer may translate
   instructions into inspectable Vector source/AST, but the current lexer/parser remain
   deterministic.
+- **Editors are clients, not language implementations.** Visual Studio delegates analysis
+  and execution to shared out-of-process services, preserving future VS Code reuse.
+- **Analysis never executes.** Diagnostics, completion, navigation, references, and rename
+  do not load plugin DLLs or run user source.
 
-## 11. Deliberate non-goals
+## 12. Deliberate non-goals
 
 The current submission deliberately does not include:
 
 - direct execution of unrestricted natural-language instructions;
 - a general-purpose AI or embedding model;
-- a Visual Studio Community extension;
+- a custom Visual Studio project system or integrated debugger;
+- a VS Code extension;
 - Vector package/dependency management;
 - automatic loading of arbitrary DLLs or NuGet packages;
 - a plugin security sandbox;
 - a serialized `.vbc` bytecode format or stable opcode ABI;
 - an optimizing/JIT or native machine-code compiler;
 - indexed local/upvalue VM optimization;
-- a production-scale standard library, full IDE, or integrated debugger.
+- a production-scale standard library or full standalone IDE.
 
 These boundaries keep the completed interpreter, libraries/plugins, and VM testable and
 stable for the academy submission while leaving clear directions for future work.

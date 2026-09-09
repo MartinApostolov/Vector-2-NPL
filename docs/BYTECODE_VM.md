@@ -509,11 +509,12 @@ The completed VM v1 deliberately does **not** include:
 - a separate VM module/plugin system;
 - automatic plugin discovery;
 - sandboxing of external C# plugins;
-- Visual Studio editor integration.
+- editor integration concerns outside the VM itself.
 
 Environment-backed locals/closures are an intentional v1 correctness choice. A later
 implementation may optimize locals and captures to indexed slots/upvalues while preserving
 the same observable Vector behavior.
 
-The next planned major stretch goal is the **Visual Studio Community Extension**. That
-phase should have its own implementation plan and is not part of Bytecode/VM v1.
+The **Visual Studio Community 2026 Extension v1** was implemented later as a separate
+layer and remains outside Bytecode/VM v1. It invokes this VM only through the isolated
+execution host; see [VISUAL_STUDIO_EXTENSION.md](VISUAL_STUDIO_EXTENSION.md).

@@ -36,6 +36,7 @@ Vector source -> Lexer -> Parser -> AST -> Interpreter        -> Result
 - CLI backend selection with `--engine interpreter|vm` and VM-only `--disassemble`
 - `.vec` command-line execution, repeated CLI `--plugin` options, a reusable embedded plugin runtime, and an interactive REPL
 - interpreter/VM compatibility tests plus automated tests and 15 focused example entry points/programs
+- a Visual Studio Community 2026 VSIX with `.vec` highlighting, diagnostics, IntelliSense, navigation, references, safe rename, isolated run/VM commands, and bytecode disassembly
 
 The whole-project architecture is summarized in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -43,6 +44,7 @@ The formal language rules are in [docs/LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md).
 The bytecode compiler/VM architecture is documented in
 [docs/BYTECODE_VM.md](docs/BYTECODE_VM.md).
 External C# plugin authors should start with [docs/PLUGIN_DEVELOPMENT.md](docs/PLUGIN_DEVELOPMENT.md).
+Visual Studio users and extension contributors should read [docs/VISUAL_STUDIO_EXTENSION.md](docs/VISUAL_STUDIO_EXTENSION.md).
 The academy/project boundaries and future directions are in
 [docs/PROJECT_SCOPE.md](docs/PROJECT_SCOPE.md).
 
@@ -55,9 +57,9 @@ Required for command-line development:
 - .NET 8 SDK
 - Git, if cloning the repository from GitHub
 
-Optional development environment:
+Optional editor/runtime environments:
 
-- Visual Studio 2022 with .NET 8 development support
+- Visual Studio Community 2026 with the core editor and .NET development support, for building/debugging/installing the VSIX
 
 No external runtime service, package manager for Vector code, or external native
 library is required. **No database, seed data, API keys, accounts, or credentials are
@@ -80,6 +82,14 @@ dotnet build Vector.sln
 ```
 
 In Visual Studio, open `Vector.sln` and use **Build -> Rebuild Solution**.
+
+To build, test, and structurally verify the Visual Studio package in one repeatable step:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/Build-VisualStudioVsix.ps1
+```
+
+The VSIX is written beneath `src/Vector.VisualStudio/bin/Release/`. See the dedicated Visual Studio guide for installation, Experimental Instance testing, commands, settings, and limitations.
 
 ## Run the tests
 
@@ -568,6 +578,11 @@ or stack traces to Vector code.
 src/Vector.Core/      language front end, interpreter, bytecode compiler/VM, modules, public execution APIs
 src/Vector.Plugins/   external plugin contract, loader, registration manager, embedded runtime
 src/Vector.Cli/       file runner, backend selection, disassembly, diagnostics, REPL, `--plugin` loading
+src/Vector.Analysis/  editor-independent in-memory analysis, scopes, modules, completion, navigation, references, rename
+src/Vector.LanguageServer/ editor-neutral stdio LSP exposing Vector analysis
+src/Vector.ExecutionProtocol/ shared JSON contract for isolated editor execution
+src/Vector.ExecutionHost/ isolated interpreter/VM/plugin process used by editor clients
+src/Vector.VisualStudio/ thin Visual Studio Community 2026 extension shell and VSIX packaging
 tests/Vector.Tests    automated lexer/parser/runtime/VM/compatibility/integration/example tests
 examples/             runnable Vector programs and the copyable `Vector.ExamplePlugin` project
 docs/                 architecture overview, project scope, language spec, bytecode/VM guide, and plugin developer guide
@@ -587,6 +602,10 @@ can be selected in the CLI/REPL, and is protected by cross-backend compatibility
 The bytecode representation is deliberately in-memory in v1; there is no persisted
 `.vbc` file format or optimizing/JIT compiler.
 
-The next major future stretch goal is the **Visual Studio Community Extension**.
-Later goals remain package/dependency management if useful and, last, an inspectable
-natural-language translation layer.
+The **Visual Studio Community 2026 Extension v1** is implemented on the
+`visual-studio-extension` branch. It reuses the editor-independent analysis, language
+server, execution protocol, and isolated host; it does not duplicate the parser/runtime
+or load plugins during static editing.
+
+Later goals remain a VS Code client that reuses those same services, package/dependency
+management if useful, and, last, an inspectable natural-language translation layer.
