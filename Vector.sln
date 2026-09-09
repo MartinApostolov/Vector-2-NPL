@@ -46,6 +46,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.LanguageServer", "sr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.LanguageServer.Tests", "tests\Vector.LanguageServer.Tests\Vector.LanguageServer.Tests.csproj", "{EB8C837B-9676-4A1E-821C-28B05FB835EF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.Analysis", "src\Vector.Analysis\Vector.Analysis.csproj", "{FC0C3859-856B-4B96-8AAE-FC85B7D5D76D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.Analysis.Tests", "tests\Vector.Analysis.Tests\Vector.Analysis.Tests.csproj", "{5D47B5A6-C026-4E3B-9EC0-AF6C170BE3C7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -141,6 +145,14 @@ Global
 		{EB8C837B-9676-4A1E-821C-28B05FB835EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EB8C837B-9676-4A1E-821C-28B05FB835EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EB8C837B-9676-4A1E-821C-28B05FB835EF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FC0C3859-856B-4B96-8AAE-FC85B7D5D76D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FC0C3859-856B-4B96-8AAE-FC85B7D5D76D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FC0C3859-856B-4B96-8AAE-FC85B7D5D76D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FC0C3859-856B-4B96-8AAE-FC85B7D5D76D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5D47B5A6-C026-4E3B-9EC0-AF6C170BE3C7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5D47B5A6-C026-4E3B-9EC0-AF6C170BE3C7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5D47B5A6-C026-4E3B-9EC0-AF6C170BE3C7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5D47B5A6-C026-4E3B-9EC0-AF6C170BE3C7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
