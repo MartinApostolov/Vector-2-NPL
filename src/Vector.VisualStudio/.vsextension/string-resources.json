@@ -1,4 +1,5 @@
 {
   "Vector.VisualStudio.About.DisplayName": "Vector: About Vector Extension",
-  "Vector.VisualStudio.About.Tooltip": "Verify that the Vector Visual Studio extension is loaded."
+  "Vector.VisualStudio.About.Tooltip": "Verify that the Vector Visual Studio extension is loaded.",
+  "Vector.VisualStudio.LanguageServer.DisplayName": "Vector Language Server"
 }

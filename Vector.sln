@@ -42,6 +42,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.TestPlugin.Duplicate
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.VisualStudio", "src\Vector.VisualStudio\Vector.VisualStudio.csproj", "{A1C79C49-CC56-4A32-A8A5-D67F41E12175}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.LanguageServer", "src\Vector.LanguageServer\Vector.LanguageServer.csproj", "{F2E5F2E6-8B35-487A-B2E5-E6A0A2F3646E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.LanguageServer.Tests", "tests\Vector.LanguageServer.Tests\Vector.LanguageServer.Tests.csproj", "{EB8C837B-9676-4A1E-821C-28B05FB835EF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -129,6 +133,14 @@ Global
 		{A1C79C49-CC56-4A32-A8A5-D67F41E12175}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
 		{A1C79C49-CC56-4A32-A8A5-D67F41E12175}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A1C79C49-CC56-4A32-A8A5-D67F41E12175}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F2E5F2E6-8B35-487A-B2E5-E6A0A2F3646E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F2E5F2E6-8B35-487A-B2E5-E6A0A2F3646E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F2E5F2E6-8B35-487A-B2E5-E6A0A2F3646E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F2E5F2E6-8B35-487A-B2E5-E6A0A2F3646E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EB8C837B-9676-4A1E-821C-28B05FB835EF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EB8C837B-9676-4A1E-821C-28B05FB835EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EB8C837B-9676-4A1E-821C-28B05FB835EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EB8C837B-9676-4A1E-821C-28B05FB835EF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

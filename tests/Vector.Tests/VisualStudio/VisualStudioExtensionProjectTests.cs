@@ -8,6 +8,7 @@ public sealed class VisualStudioExtensionProjectTests
     private const string ExtensionProjectPath = "src/Vector.VisualStudio/Vector.VisualStudio.csproj";
     private const string ExtensionSourcePath = "src/Vector.VisualStudio/VectorExtension.cs";
     private const string DocumentTypeSourcePath = "src/Vector.VisualStudio/VectorDocumentType.cs";
+    private const string LanguageServerProviderSourcePath = "src/Vector.VisualStudio/VectorLanguageServerProvider.cs";
     private const string AboutCommandSourcePath = "src/Vector.VisualStudio/AboutVectorExtensionCommand.cs";
     private const string StringResourcesPath = "src/Vector.VisualStudio/.vsextension/string-resources.json";
 
@@ -45,13 +46,13 @@ public sealed class VisualStudioExtensionProjectTests
     }
 
     [Fact]
-    public void VectorDocumentType_RegistersVecAsText()
+    public void VectorDocumentType_RegistersVecForLanguageServer()
     {
         var root = FindRepositoryRoot();
         var documentTypeSource = File.ReadAllText(Path.Combine(root, DocumentTypeSourcePath));
 
         Assert.Contains("VectorFileExtension = \".vec\"", documentTypeSource, StringComparison.Ordinal);
-        Assert.Contains("DocumentType.KnownValues.Text", documentTypeSource, StringComparison.Ordinal);
+        Assert.Contains("LanguageServerBaseDocumentType", documentTypeSource, StringComparison.Ordinal);
         Assert.Contains("[VisualStudioContribution]", documentTypeSource, StringComparison.Ordinal);
     }
 
@@ -77,6 +78,31 @@ public sealed class VisualStudioExtensionProjectTests
         var rootElement = document.RootElement;
         Assert.Equal("Vector: About Vector Extension", rootElement.GetProperty("Vector.VisualStudio.About.DisplayName").GetString());
         Assert.False(string.IsNullOrWhiteSpace(rootElement.GetProperty("Vector.VisualStudio.About.Tooltip").GetString()));
+        Assert.Equal("Vector Language Server", rootElement.GetProperty("Vector.VisualStudio.LanguageServer.DisplayName").GetString());
+    }
+
+    [Fact]
+    public void ExtensionProject_PackagesSeparateLanguageServer()
+    {
+        var root = FindRepositoryRoot();
+        var project = File.ReadAllText(Path.Combine(root, ExtensionProjectPath));
+
+        Assert.Contains("Vector.LanguageServer\\Vector.LanguageServer.csproj", project, StringComparison.Ordinal);
+        Assert.Contains("IncludeVectorLanguageServerInVsix", project, StringComparison.Ordinal);
+        Assert.Contains("<VSIXSubPath>LanguageServer</VSIXSubPath>", project, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LanguageServerProvider_IsBoundToVectorDocumentsAndUsesStdio()
+    {
+        var root = FindRepositoryRoot();
+        var provider = File.ReadAllText(Path.Combine(root, LanguageServerProviderSourcePath));
+
+        Assert.Contains("DocumentFilter.FromDocumentType(VectorExtension.VectorDocumentType)", provider, StringComparison.Ordinal);
+        Assert.Contains("Vector.LanguageServer.exe", provider, StringComparison.Ordinal);
+        Assert.Contains("RedirectStandardInput = true", provider, StringComparison.Ordinal);
+        Assert.Contains("RedirectStandardOutput = true", provider, StringComparison.Ordinal);
+        Assert.Contains("Kill(entireProcessTree: true)", provider, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()

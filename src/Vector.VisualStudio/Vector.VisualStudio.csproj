@@ -15,4 +15,26 @@
     <PackageReference Include="Microsoft.VisualStudio.Extensibility.Build" Version="17.14.40608" PrivateAssets="all" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Vector.LanguageServer\Vector.LanguageServer.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Target Name="CopyVectorLanguageServer" AfterTargets="Build">
+    <ItemGroup>
+      <VectorLanguageServerFiles Include="..\Vector.LanguageServer\bin\$(Configuration)\net8.0\*" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(VectorLanguageServerFiles)"
+      DestinationFiles="@(VectorLanguageServerFiles->'$(OutputPath)LanguageServer\%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="IncludeVectorLanguageServerInVsix" BeforeTargets="GetVsixSourceItems">
+    <ItemGroup>
+      <VSIXSourceItem Include="..\Vector.LanguageServer\bin\$(Configuration)\net8.0\*">
+        <VSIXSubPath>LanguageServer</VSIXSubPath>
+      </VSIXSourceItem>
+    </ItemGroup>
+  </Target>
+
 </Project>
