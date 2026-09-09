@@ -1,5 +1,13 @@
 {
   "Vector.VisualStudio.About.DisplayName": "Vector: About Vector Extension",
   "Vector.VisualStudio.About.Tooltip": "Verify that the Vector Visual Studio extension is loaded.",
-  "Vector.VisualStudio.LanguageServer.DisplayName": "Vector Language Server"
+  "Vector.VisualStudio.LanguageServer.DisplayName": "Vector Language Server",
+  "Vector.Commands.Run.DisplayName": "Vector: Run Current File",
+  "Vector.Commands.Run.Tooltip": "Run the current Vector buffer using the default interpreter engine.",
+  "Vector.Commands.RunInterpreter.DisplayName": "Vector: Run Current File with Interpreter",
+  "Vector.Commands.RunInterpreter.Tooltip": "Run the current unsaved Vector buffer with the interpreter.",
+  "Vector.Commands.RunVm.DisplayName": "Vector: Run Current File with VM",
+  "Vector.Commands.RunVm.Tooltip": "Run the current unsaved Vector buffer with the bytecode virtual machine.",
+  "Vector.Commands.Disassemble.DisplayName": "Vector: Show Bytecode",
+  "Vector.Commands.Disassemble.Tooltip": "Compile and disassemble the current Vector buffer without executing it."
 }

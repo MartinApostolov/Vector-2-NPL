@@ -2,6 +2,8 @@ namespace Vector.VisualStudio;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.Extensibility;
+using Vector.VisualStudio.Execution;
+using Vector.VisualStudio.Output;
 
 /// <summary>
 /// Entry point for the out-of-process Vector Visual Studio extension.
@@ -26,5 +28,7 @@ public sealed partial class VectorExtension : Extension
     protected override void InitializeServices(IServiceCollection serviceCollection)
     {
         base.InitializeServices(serviceCollection);
+        serviceCollection.AddSingleton<VectorExecutionClient>();
+        serviceCollection.AddSingleton<VectorOutputService>();
     }
 }

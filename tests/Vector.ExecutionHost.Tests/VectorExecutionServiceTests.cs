@@ -1,6 +1,6 @@
 namespace Vector.ExecutionHost.Tests;
 
-using Vector.ExecutionHost.Protocol;
+using Vector.ExecutionProtocol;
 using Xunit;
 
 public sealed class VectorExecutionServiceTests

@@ -1,7 +1,7 @@
 namespace Vector.ExecutionHost;
 
 using System.Text.Json;
-using Vector.ExecutionHost.Protocol;
+using Vector.ExecutionProtocol;
 
 internal static class Program
 {

@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Vector.ExecutionProtocol\Vector.ExecutionProtocol.csproj" />
     <ProjectReference Include="..\Vector.Core\Vector.Core.csproj" />
     <ProjectReference Include="..\Vector.Plugins\Vector.Plugins.csproj" />
   </ItemGroup>

@@ -16,6 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Vector.ExecutionProtocol\Vector.ExecutionProtocol.csproj" />
+    <ProjectReference Include="..\Vector.ExecutionHost\Vector.ExecutionHost.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\Vector.LanguageServer\Vector.LanguageServer.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
@@ -44,10 +46,28 @@
       SkipUnchangedFiles="true" />
   </Target>
 
+  <Target Name="CopyVectorExecutionHost" AfterTargets="Build">
+    <ItemGroup>
+      <VectorExecutionHostFiles Include="..\Vector.ExecutionHost\bin\$(Configuration)\net8.0\*" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(VectorExecutionHostFiles)"
+      DestinationFiles="@(VectorExecutionHostFiles->'$(OutputPath)ExecutionHost\%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+  </Target>
+
   <Target Name="IncludeVectorLanguageServerInVsix" BeforeTargets="GetVsixSourceItems">
     <ItemGroup>
       <VSIXSourceItem Include="..\Vector.LanguageServer\bin\$(Configuration)\net8.0\*">
         <VSIXSubPath>LanguageServer</VSIXSubPath>
+      </VSIXSourceItem>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="IncludeVectorExecutionHostInVsix" BeforeTargets="GetVsixSourceItems">
+    <ItemGroup>
+      <VSIXSourceItem Include="..\Vector.ExecutionHost\bin\$(Configuration)\net8.0\*">
+        <VSIXSubPath>ExecutionHost</VSIXSubPath>
       </VSIXSourceItem>
     </ItemGroup>
   </Target>

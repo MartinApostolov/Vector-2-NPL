@@ -4,7 +4,7 @@ using Vector.Core;
 using Vector.Core.Diagnostics;
 using Vector.Core.Execution;
 using Vector.Core.Runtime;
-using Vector.ExecutionHost.Protocol;
+using Vector.ExecutionProtocol;
 using Vector.Plugins;
 using Vector.Plugins.Loading;
 

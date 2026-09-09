@@ -1,4 +1,4 @@
-namespace Vector.ExecutionHost.Protocol;
+namespace Vector.ExecutionProtocol;
 
 using System.Text.Json;
 using System.Text.Json.Serialization;

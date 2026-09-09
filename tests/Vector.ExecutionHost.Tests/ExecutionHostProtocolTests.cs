@@ -2,7 +2,7 @@ namespace Vector.ExecutionHost.Tests;
 
 using System.Diagnostics;
 using System.Text.Json;
-using Vector.ExecutionHost.Protocol;
+using Vector.ExecutionProtocol;
 using Xunit;
 
 public sealed class ExecutionHostProtocolTests
