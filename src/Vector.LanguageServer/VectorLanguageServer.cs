@@ -19,6 +19,7 @@ public sealed class VectorLanguageServer
     private readonly VectorCompletionService completionService;
     private readonly VectorHoverService hoverService = new();
     private readonly VectorDefinitionService definitionService;
+    private readonly VectorReferenceService referenceService;
     private readonly VectorSignatureHelpService signatureHelpService;
     private ServerLifecycleState state;
 
@@ -46,6 +47,7 @@ public sealed class VectorLanguageServer
             options ?? VectorLanguageServerOptions.Default);
         this.completionService = new VectorCompletionService(this.documents.Modules);
         this.definitionService = new VectorDefinitionService(this.documents.Modules);
+        this.referenceService = new VectorReferenceService(this.documents.Modules);
         this.signatureHelpService = new VectorSignatureHelpService(this.documents.Modules);
     }
 
@@ -79,6 +81,7 @@ public sealed class VectorLanguageServer
                 HoverProvider = true,
                 DocumentSymbolProvider = true,
                 DefinitionProvider = true,
+                ReferencesProvider = true,
                 SignatureHelpProvider = new SignatureHelpOptions { TriggerCharacters = ["(", ","] },
             },
             ServerInfo = new VectorServerInfo
@@ -229,6 +232,46 @@ public sealed class VectorLanguageServer
                 },
             },
         });
+    }
+
+    [JsonRpcMethod(Methods.TextDocumentReferencesName, UseSingleObjectParameterDeserialization = true)]
+    public Task<Location[]> ReferencesAsync(ReferenceParams parameters, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        this.RequireState(ServerLifecycleState.Initialized, Methods.TextDocumentReferencesName);
+        if (!this.documents.TryGetDocument(parameters.TextDocument.Uri, out VectorAnalysisResult? analysis)
+            || analysis is null)
+        {
+            return Task.FromResult(Array.Empty<Location>());
+        }
+
+        int offset = analysis.Document.LineMap.GetOffset(
+            new Analysis.Text.TextPosition(parameters.Position.Line, parameters.Position.Character));
+        Location[] locations = this.referenceService.GetReferences(
+            analysis,
+            offset,
+            this.documents.Documents,
+            parameters.Context.IncludeDeclaration,
+            cancellationToken)
+            .Select(location => new Location
+            {
+                Uri = location.Uri,
+                Range = new Microsoft.VisualStudio.LanguageServer.Protocol.Range
+                {
+                    Start = new Position
+                    {
+                        Line = location.Range.Start.Line,
+                        Character = location.Range.Start.Character,
+                    },
+                    End = new Position
+                    {
+                        Line = location.Range.End.Line,
+                        Character = location.Range.End.Character,
+                    },
+                },
+            })
+            .ToArray();
+        return Task.FromResult(locations);
     }
 
     [JsonRpcMethod(Methods.TextDocumentSignatureHelpName, UseSingleObjectParameterDeserialization = true)]

@@ -30,6 +30,8 @@ internal sealed class VectorDocumentService
 
     public VectorModuleIndex Modules => this.workspace.Modules;
 
+    public IReadOnlyList<VectorAnalysisResult> Documents => this.workspace.Documents;
+
     public async Task OpenAsync(TextDocumentItem document, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(document);
