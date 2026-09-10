@@ -5,7 +5,8 @@ const production = process.argv.includes('--production');
 
 await Promise.all([
   mkdir('dist', { recursive: true }),
-  mkdir('dist-test/test/unit', { recursive: true })
+  mkdir('dist-test/test/unit', { recursive: true }),
+  mkdir('dist-test/test/process', { recursive: true })
 ]);
 
 await build({
@@ -23,8 +24,9 @@ await build({
 });
 
 await build({
-  entryPoints: ['test/unit/*.test.ts'],
-  bundle: false,
+  entryPoints: ['test/**/*.test.ts'],
+  bundle: true,
+  external: ['vscode'],
   format: 'cjs',
   platform: 'node',
   target: 'node20',

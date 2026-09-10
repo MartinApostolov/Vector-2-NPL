@@ -9,6 +9,7 @@ src/Vector.VSCode/dist/
 src/Vector.VSCode/dist-test/
 src/Vector.VSCode/out/
 src/Vector.VSCode/.vscode-test/
+src/Vector.VSCode/server/
 *.user
 *.suo
 *.userosscache
