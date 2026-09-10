@@ -32,7 +32,15 @@
         ],
         "extensions": [
           ".vec"
-        ]
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "vector",
+        "scopeName": "source.vector",
+        "path": "./syntaxes/vector.tmLanguage.json"
       }
     ]
   },
