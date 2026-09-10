@@ -6,7 +6,7 @@ The packaging layout follows the current official VS Code guidance for [language
 
 ## Prerequisites
 
-- .NET 8 runtime or newer (`Microsoft.NETCore.App`) on `PATH` as `dotnet`.
+- .NET 8.x runtime (`Microsoft.NETCore.App` 8.x) with `dotnet` on `PATH`. A .NET 9.x or 10.x runtime alone is not sufficient for the current framework-dependent `net8.0` payload. Check installed runtimes with `dotnet --list-runtimes`.
 - .NET 8 SDK or newer to build and test the repository.
 - Node.js 20 or newer and npm to build/package the extension.
 - Visual Studio Code 1.104.0 or newer for development-host tests and manual testing.

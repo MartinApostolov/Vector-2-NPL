@@ -63,6 +63,7 @@ Optional editor/runtime environments:
 
 - Visual Studio Community 2026 with the core editor and .NET development support, for building/debugging/installing the VSIX
 - Visual Studio Code 1.104 or newer plus Node.js 20 or newer, for building/debugging/installing the VS Code VSIX
+- `Microsoft.NETCore.App` 8.x with `dotnet` on `PATH` to run the framework-dependent VS Code extension payload; .NET 9.x or 10.x alone is not sufficient. Check with `dotnet --list-runtimes`.
 
 No external runtime service, package manager for Vector code, or external native
 library is required. **No database, seed data, API keys, accounts, or credentials are

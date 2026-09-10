@@ -37,7 +37,7 @@ export async function requireFile(path: string, description: string): Promise<vo
   }
 }
 
-export function parseNetCoreRuntimeVersion(output: string, requiredMajor = 8): string | undefined {
+export function parseNetCoreRuntimeVersion(output: string): string | undefined {
   const versions = output
     .split(/\r?\n/u)
     .map(line => /^Microsoft\.NETCore\.App\s+(\d+)\.(\d+)\.(\d+)\s+/u.exec(line))
@@ -48,7 +48,7 @@ export function parseNetCoreRuntimeVersion(output: string, requiredMajor = 8): s
       patch: Number(match[3]),
       version: `${match[1]}.${match[2]}.${match[3]}`
     }))
-    .filter(version => version.major >= requiredMajor)
+    .filter(version => version.major === 8)
     .sort((left, right) =>
       right.major - left.major || right.minor - left.minor || right.patch - left.patch);
 
@@ -69,7 +69,10 @@ export async function findDotnetRuntime(command = 'dotnet'): Promise<DotnetRunti
 
   const version = parseNetCoreRuntimeVersion(stdout);
   if (version === undefined) {
-    throw new Error('Vector requires the .NET 8 runtime or newer. Install a compatible Microsoft.NETCore.App runtime.');
+    throw new Error(
+      'The Vector VS Code extension requires an installed Microsoft.NETCore.App 8.x runtime. ' +
+      'Run \'dotnet --list-runtimes\' to check installed runtimes; .NET 9.x or 10.x alone cannot run the current net8.0 payload.'
+    );
   }
 
   return { command, version };

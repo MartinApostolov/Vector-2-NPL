@@ -1,5 +1,7 @@
 # Vector VS Code acceptance workspace
 
+Install the .NET 8.x runtime (`Microsoft.NETCore.App` 8.x) before testing; .NET 9.x or 10.x alone cannot run the current `net8.0` payload. Use `dotnet --list-runtimes` to confirm that an 8.x runtime is present.
+
 Open this directory as the VS Code workspace after installing the packaged extension. The default program root can remain empty because `main.vec` and `local/geometry.vec` use the normal inherited-root layout.
 
 ## Manual checklist

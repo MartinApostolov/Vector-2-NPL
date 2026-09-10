@@ -17,21 +17,55 @@ test('resolves both managed hosts relative to the installed extension', () => {
   assert.equal(paths.executionHost, join(root, 'server', 'execution-host', 'Vector.ExecutionHost.dll'));
 });
 
-test('recognizes a compatible Microsoft.NETCore.App runtime', () => {
+test('accepts when only Microsoft.NETCore.App 8.x is installed', () => {
+  assert.equal(
+    parseNetCoreRuntimeVersion('Microsoft.NETCore.App 8.0.20 [C:\\dotnet\\shared\\Microsoft.NETCore.App]'),
+    '8.0.20'
+  );
+});
+
+test('accepts Microsoft.NETCore.App 8.x when newer runtimes are also installed', () => {
   const output = [
-    'Microsoft.AspNetCore.App 8.0.20 [C:\\dotnet\\shared\\Microsoft.AspNetCore.App]',
     'Microsoft.NETCore.App 8.0.20 [C:\\dotnet\\shared\\Microsoft.NETCore.App]',
+    'Microsoft.NETCore.App 9.0.5 [C:\\dotnet\\shared\\Microsoft.NETCore.App]',
     'Microsoft.NETCore.App 10.0.1 [C:\\dotnet\\shared\\Microsoft.NETCore.App]'
   ].join('\r\n');
 
-  assert.equal(parseNetCoreRuntimeVersion(output), '10.0.1');
+  assert.equal(parseNetCoreRuntimeVersion(output), '8.0.20');
+});
+
+test('rejects when only Microsoft.NETCore.App 9.x is installed', () => {
+  assert.equal(
+    parseNetCoreRuntimeVersion('Microsoft.NETCore.App 9.0.5 [C:\\dotnet\\shared\\Microsoft.NETCore.App]'),
+    undefined
+  );
+});
+
+test('rejects when only Microsoft.NETCore.App 10.x is installed', () => {
+  assert.equal(
+    parseNetCoreRuntimeVersion('Microsoft.NETCore.App 10.0.1 [C:\\dotnet\\shared\\Microsoft.NETCore.App]'),
+    undefined
+  );
+});
+
+test('rejects when no compatible Microsoft.NETCore.App runtime is installed', () => {
   assert.equal(parseNetCoreRuntimeVersion('Microsoft.NETCore.App 7.0.20 [C:\\dotnet]'), undefined);
+  assert.equal(parseNetCoreRuntimeVersion(''), undefined);
+});
+
+test('does not mistake Microsoft.AspNetCore.App for the required runtime', () => {
+  const output = [
+    'Microsoft.AspNetCore.App 8.0.20 [C:\\dotnet\\shared\\Microsoft.AspNetCore.App]',
+    'Microsoft.AspNetCore.App 10.0.1 [C:\\dotnet\\shared\\Microsoft.AspNetCore.App]'
+  ].join('\r\n');
+
+  assert.equal(parseNetCoreRuntimeVersion(output), undefined);
 });
 
 test('uses a real compatible dotnet runtime', async () => {
   const runtime = await findDotnetRuntime();
   assert.equal(runtime.command, 'dotnet');
-  assert.match(runtime.version, /^(?:[89]|\d{2,})\.\d+\.\d+$/u);
+  assert.match(runtime.version, /^8\.\d+\.\d+$/u);
 });
 
 test('does not inherit an IDE-private DOTNET_HOST_PATH', () => {
