@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Vector VS Code Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/src/Vector.VSCode",
+        "${workspaceFolder}/examples/vscode-acceptance"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/src/Vector.VSCode/dist/**/*.js"
+      ],
+      "preLaunchTask": "Compile Vector VS Code Client"
+    },
+    {
+      "name": "Test Vector VS Code Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "testConfiguration": "${workspaceFolder}/src/Vector.VSCode/.vscode-test.mjs",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/src/Vector.VSCode"
+      ],
+      "preLaunchTask": "Compile Vector VS Code Client"
+    }
+  ]
+}

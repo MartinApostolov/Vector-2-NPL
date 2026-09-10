@@ -1,0 +1,32 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build Vector VS Code Extension",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "build:payload"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/src/Vector.VSCode"
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Compile Vector VS Code Client",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "compile"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/src/Vector.VSCode"
+      },
+      "dependsOn": "Build Vector VS Code Extension",
+      "problemMatcher": "$tsc"
+    }
+  ]
+}

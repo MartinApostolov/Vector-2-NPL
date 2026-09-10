@@ -37,6 +37,7 @@ Vector source -> Lexer -> Parser -> AST -> Interpreter        -> Result
 - `.vec` command-line execution, repeated CLI `--plugin` options, a reusable embedded plugin runtime, and an interactive REPL
 - interpreter/VM compatibility tests plus automated tests and 15 focused example entry points/programs
 - a Visual Studio Community 2026 VSIX with `.vec` highlighting, diagnostics, IntelliSense, navigation, references, safe rename, isolated run/VM commands, and bytecode disassembly
+- an installable Visual Studio Code VSIX using the same language server, execution host, grammar, and language configuration
 
 The whole-project architecture is summarized in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -45,6 +46,7 @@ The bytecode compiler/VM architecture is documented in
 [docs/BYTECODE_VM.md](docs/BYTECODE_VM.md).
 External C# plugin authors should start with [docs/PLUGIN_DEVELOPMENT.md](docs/PLUGIN_DEVELOPMENT.md).
 Visual Studio users and extension contributors should read [docs/VISUAL_STUDIO_EXTENSION.md](docs/VISUAL_STUDIO_EXTENSION.md).
+Visual Studio Code users and extension contributors should read [docs/VSCODE_EXTENSION.md](docs/VSCODE_EXTENSION.md).
 The academy/project boundaries and future directions are in
 [docs/PROJECT_SCOPE.md](docs/PROJECT_SCOPE.md).
 
@@ -60,6 +62,7 @@ Required for command-line development:
 Optional editor/runtime environments:
 
 - Visual Studio Community 2026 with the core editor and .NET development support, for building/debugging/installing the VSIX
+- Visual Studio Code 1.104 or newer plus Node.js 20 or newer, for building/debugging/installing the VS Code VSIX
 
 No external runtime service, package manager for Vector code, or external native
 library is required. **No database, seed data, API keys, accounts, or credentials are
@@ -90,6 +93,14 @@ powershell -ExecutionPolicy Bypass -File scripts/Build-VisualStudioVsix.ps1
 ```
 
 The VSIX is written beneath `src/Vector.VisualStudio/bin/Release/`. See the dedicated Visual Studio guide for installation, Experimental Instance testing, commands, settings, and limitations.
+
+To build, test, package, and audit the Visual Studio Code extension in one repeatable step:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/Build-VSCodeVsix.ps1
+```
+
+The VS Code VSIX is written beneath `src/Vector.VSCode/out/`. Its dedicated guide covers the Extension Development Host, installation, commands, settings, prerequisites, and the acceptance workspace.
 
 ## Run the tests
 

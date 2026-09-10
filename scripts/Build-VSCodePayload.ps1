@@ -56,4 +56,6 @@ foreach ($requiredFile in @(
     }
 }
 
+Get-ChildItem -LiteralPath $serverRoot -Recurse -File -Filter '*.pdb' | Remove-Item -Force
+
 Write-Host "Vector VS Code managed payload built at: $serverRoot"

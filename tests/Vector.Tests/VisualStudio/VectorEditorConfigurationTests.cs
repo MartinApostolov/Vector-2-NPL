@@ -50,8 +50,11 @@ public sealed class VectorEditorConfigurationTests
         Assert.Equal("/*", root.GetProperty("comments").GetProperty("blockComment")[0].GetString());
         Assert.Equal("*/", root.GetProperty("comments").GetProperty("blockComment")[1].GetString());
         Assert.Equal(3, root.GetProperty("brackets").GetArrayLength());
-        Assert.Equal(4, root.GetProperty("autoClosingPairs").GetArrayLength());
-        Assert.Equal(4, root.GetProperty("surroundingPairs").GetArrayLength());
+        string[] expectedPairs = ["{}", "[]", "()", "\"\"", "''"];
+        Assert.Equal(expectedPairs, root.GetProperty("autoClosingPairs").EnumerateArray()
+            .Select(pair => pair.GetProperty("open").GetString() + pair.GetProperty("close").GetString()));
+        Assert.Equal(expectedPairs, root.GetProperty("surroundingPairs").EnumerateArray()
+            .Select(pair => pair[0].GetString() + pair[1].GetString()));
     }
 
     [Fact]
