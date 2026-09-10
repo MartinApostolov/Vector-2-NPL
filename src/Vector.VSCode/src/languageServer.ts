@@ -13,9 +13,11 @@ import {
   requireFile,
   resolvePayloadPaths
 } from './runtime';
+import { analysisEnvironment, analysisSettingsKey, getAnalysisSettings } from './settings';
 
 export class VectorLanguageServerClient {
   private client: LanguageClient | undefined;
+  private settingsKey: string | undefined;
 
   public constructor(
     private readonly context: ExtensionContext,
@@ -30,6 +32,8 @@ export class VectorLanguageServerClient {
     const paths = resolvePayloadPaths(this.context.extensionPath);
     await requireFile(paths.languageServer, 'The Vector language server');
     const runtime = await findDotnetRuntime();
+    const settings = getAnalysisSettings();
+    this.settingsKey = analysisSettingsKey(settings);
     this.output.info(`Using dotnet ${runtime.version} for the Vector language server.`);
     this.output.info(`Language server: ${paths.languageServer}`);
 
@@ -39,7 +43,7 @@ export class VectorLanguageServerClient {
       transport: TransportKind.stdio,
       options: {
         cwd: dirname(paths.languageServer),
-        env: childProcessEnvironment(),
+        env: { ...childProcessEnvironment(), ...analysisEnvironment(settings) },
         detached: false,
         shell: false
       }
@@ -77,6 +81,16 @@ export class VectorLanguageServerClient {
     }
 
     await this.client.restart();
+  }
+
+  public async restartIfConfigurationChanged(): Promise<void> {
+    const key = analysisSettingsKey(getAnalysisSettings());
+    if (key === this.settingsKey) {
+      return;
+    }
+    this.output.info('Vector analysis settings changed; restarting the language server.');
+    await this.stop();
+    await this.start();
   }
 
   public async stop(): Promise<void> {

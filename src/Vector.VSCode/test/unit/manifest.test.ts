@@ -6,6 +6,10 @@ import test from 'node:test';
 interface ExtensionManifest {
   activationEvents: string[];
   contributes: {
+    commands: Array<{ command: string; title: string }>;
+    configuration: {
+      properties: Record<string, { default: unknown; enum?: string[]; type: string }>;
+    };
     languages: Array<{
       configuration: string;
       id: string;
@@ -36,6 +40,24 @@ test('registers .vec files as the Vector language', async () => {
     path: './syntaxes/vector.tmLanguage.json',
     scopeName: 'source.vector'
   }]);
+});
+
+test('registers all execution commands and vector settings', async () => {
+  const manifestPath = join(__dirname, '..', '..', '..', 'package.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as ExtensionManifest;
+  assert.deepEqual(manifest.contributes.commands.map(command => command.command), [
+    'vector.runCurrentFile',
+    'vector.runCurrentFileWithInterpreter',
+    'vector.runCurrentFileWithVm',
+    'vector.showBytecode'
+  ]);
+
+  const properties = manifest.contributes.configuration.properties;
+  assert.deepEqual(properties['vector.defaultExecutionEngine']?.enum, ['Interpreter', 'VM']);
+  assert.equal(properties['vector.defaultExecutionEngine']?.default, 'Interpreter');
+  assert.equal(properties['vector.liveDiagnostics']?.default, true);
+  assert.equal(properties['vector.programRoot']?.default, '');
+  assert.deepEqual(properties['vector.executionPluginPaths']?.default, []);
 });
 
 test('packages the tested Visual Studio grammar without divergence', async () => {

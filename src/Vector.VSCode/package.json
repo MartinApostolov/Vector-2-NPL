@@ -20,9 +20,65 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "onLanguage:vector"
+    "onLanguage:vector",
+    "onCommand:vector.runCurrentFile",
+    "onCommand:vector.runCurrentFileWithInterpreter",
+    "onCommand:vector.runCurrentFileWithVm",
+    "onCommand:vector.showBytecode"
   ],
   "contributes": {
+    "commands": [
+      {
+        "command": "vector.runCurrentFile",
+        "title": "Vector: Run Current File"
+      },
+      {
+        "command": "vector.runCurrentFileWithInterpreter",
+        "title": "Vector: Run Current File with Interpreter"
+      },
+      {
+        "command": "vector.runCurrentFileWithVm",
+        "title": "Vector: Run Current File with VM"
+      },
+      {
+        "command": "vector.showBytecode",
+        "title": "Vector: Show Bytecode"
+      }
+    ],
+    "configuration": {
+      "title": "Vector",
+      "properties": {
+        "vector.defaultExecutionEngine": {
+          "type": "string",
+          "enum": [
+            "Interpreter",
+            "VM"
+          ],
+          "default": "Interpreter",
+          "description": "Execution engine used by Vector: Run Current File."
+        },
+        "vector.liveDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Publish Vector lexer and parser diagnostics while editing."
+        },
+        "vector.programRoot": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "Optional Vector program root. Relative paths are resolved from the containing workspace folder."
+        },
+        "vector.executionPluginPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource",
+          "description": "Explicit Vector plugin assembly paths used for execution. Relative paths are resolved from the containing workspace folder."
+        }
+      }
+    },
     "languages": [
       {
         "id": "vector",
