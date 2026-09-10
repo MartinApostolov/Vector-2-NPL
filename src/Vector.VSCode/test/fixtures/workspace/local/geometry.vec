@@ -1,0 +1,5 @@
+function rectangleArea(width, height) {
+    return width * height;
+}
+
+let origin = [0, 0];

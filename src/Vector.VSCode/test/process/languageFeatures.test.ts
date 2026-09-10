@@ -177,3 +177,25 @@ test('keeps function parameters inside their lexical scope', async () => {
   assert.ok(!outside.some(item => item.label === 'width'));
   assert.equal(await server.shutdown(), 0);
 });
+
+test('completion observes the immediately preceding document change', async () => {
+  const uri = 'untitled:vector-completion-change.vec';
+  await using server = new LspProcess();
+  await server.initialize();
+  server.notify('textDocument/didOpen', {
+    textDocument: { uri, languageId: 'vector', version: 1, text: '' }
+  });
+  await server.waitForNotification('textDocument/publishDiagnostics');
+
+  server.notify('textDocument/didChange', {
+    textDocument: { uri, version: 2 },
+    contentChanges: [{ text: 'pri' }]
+  });
+  const completion = await server.request(
+    'textDocument/completion',
+    documentPosition(uri, 0, 3)
+  ) as CompletionItem[];
+
+  assert.ok(completion.some(item => item.label === 'print'));
+  assert.equal(await server.shutdown(), 0);
+});

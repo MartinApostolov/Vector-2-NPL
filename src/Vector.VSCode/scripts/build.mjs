@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { mkdir } from 'node:fs/promises';
+import { copyFile, mkdir } from 'node:fs/promises';
 
 const production = process.argv.includes('--production');
 
@@ -24,7 +24,7 @@ await build({
 });
 
 await build({
-  entryPoints: ['test/**/*.test.ts'],
+  entryPoints: ['test/**/*.test.ts', 'test/installed/harness/extension.ts'],
   bundle: true,
   external: ['vscode'],
   format: 'cjs',
@@ -35,3 +35,8 @@ await build({
   sourcemap: true,
   logLevel: 'info'
 });
+
+await copyFile(
+  'test/installed/harness/package.json',
+  'dist-test/test/installed/harness/package.json'
+);

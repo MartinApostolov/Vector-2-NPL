@@ -33,6 +33,24 @@ public sealed class LanguageServerDiagnosticsTests
     }
 
     [Fact]
+    public async Task EncodedWindowsDriveUri_RemainsTheDocumentIdentityForDiagnosticsAndCompletion()
+    {
+        var client = new RecordingLanguageClient();
+        VectorLanguageServer server = await CreateServerAsync(client);
+        Uri uri = new("file:///C%3A/workspace/encoded-drive.vec");
+
+        await OpenAsync(server, uri, "pri", 1);
+
+        Assert.Equal(uri, Assert.Single(client.Publications).Uri);
+        CompletionItem[] completion = await server.CompletionAsync(new CompletionParams
+        {
+            TextDocument = new TextDocumentIdentifier { Uri = uri },
+            Position = new Position { Line = 0, Character = 3 },
+        }, CancellationToken.None);
+        Assert.Contains(completion, item => item.Label == "print");
+    }
+
+    [Fact]
     public async Task DidChange_ClearsFixedDiagnostics()
     {
         var client = new RecordingLanguageClient();

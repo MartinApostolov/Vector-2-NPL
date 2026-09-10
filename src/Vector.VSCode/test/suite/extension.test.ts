@@ -34,7 +34,7 @@ suite('Vector VS Code extension', () => {
   test('starts the official language client and updates live diagnostics', async () => {
     const document = await vscode.workspace.openTextDocument({
       language: 'vector',
-      content: 'let missingExpression = ;'
+      content: 'pri\nlet missingExpression = ;'
     });
     const editor = await vscode.window.showTextDocument(document);
     await waitUntil(
@@ -47,7 +47,10 @@ suite('Vector VS Code extension', () => {
       document.uri,
       new vscode.Position(0, 3)
     );
-    assert.ok(completion.items.some(item => item.label === 'let'));
+    assert.ok(
+      completion.items.some(item => item.label === 'print' && item.kind === vscode.CompletionItemKind.Function),
+      'The Vector language-server completion provider did not return print.'
+    );
 
     await editor.edit(builder => {
       builder.replace(new vscode.Range(0, 0, document.lineCount, 0), 'let missingExpression = 1;');
@@ -57,6 +60,24 @@ suite('Vector VS Code extension', () => {
       'Vector diagnostics to clear'
     );
     await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+  });
+
+  test('offers language-server completion through the editor suggest UI', async () => {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
+    assert.ok(workspaceRoot);
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.joinPath(workspaceRoot, 'activation.vec'));
+    const editor = await vscode.window.showTextDocument(document);
+    await editor.edit(builder => {
+      builder.replace(new vscode.Range(0, 0, document.lineCount, 0), 'pri');
+    });
+    editor.selection = new vscode.Selection(0, 3, 0, 3);
+
+    await vscode.commands.executeCommand('editor.action.triggerSuggest');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await vscode.commands.executeCommand('acceptSelectedSuggestion');
+
+    assert.equal(document.getText(), 'print');
+    await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
   });
 
   test('runs registered commands from the unsaved editor buffer', async () => {

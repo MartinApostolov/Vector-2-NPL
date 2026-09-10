@@ -69,12 +69,14 @@ internal sealed class VectorDocumentService
 
         try
         {
-            await Task.Delay(ChangeDelay, pending.Token).ConfigureAwait(false);
             VectorDocumentSnapshot snapshot = this.CreateSnapshot(document.Uri, contentChanges[^1].Text, document.Version);
-            if (this.workspace.TryUpdateDocument(snapshot, out VectorAnalysisResult result, pending.Token))
+            if (!this.workspace.TryUpdateDocument(snapshot, out VectorAnalysisResult result, pending.Token))
             {
-                await this.PublishAsync(result).ConfigureAwait(false);
+                return;
             }
+
+            await Task.Delay(ChangeDelay, pending.Token).ConfigureAwait(false);
+            await this.PublishAsync(result).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (pending.IsCancellationRequested)
         {
@@ -110,12 +112,34 @@ internal sealed class VectorDocumentService
     {
         if (uri.IsFile)
         {
+            string filePath = GetFilePath(uri);
             string? programRoot = this.options.ProgramRoot
-                ?? this.workspace.Modules.GetInheritedProgramRoot(uri.LocalPath);
-            return VectorDocumentSnapshot.FromFile(uri.LocalPath, text, version, programRoot);
+                ?? this.workspace.Modules.GetInheritedProgramRoot(filePath);
+            return new VectorDocumentSnapshot(
+                uri,
+                filePath,
+                text,
+                version,
+                filePath,
+                programRoot ?? Path.GetDirectoryName(filePath));
         }
 
         return new VectorDocumentSnapshot(uri, uri.ToString(), text, version);
+    }
+
+    private static string GetFilePath(Uri uri)
+    {
+        string localPath = uri.LocalPath;
+        if (OperatingSystem.IsWindows()
+            && localPath.Length >= 3
+            && localPath[0] == '/'
+            && char.IsAsciiLetter(localPath[1])
+            && localPath[2] == ':')
+        {
+            localPath = localPath[1..];
+        }
+
+        return Path.GetFullPath(localPath);
     }
 
     private async Task PublishAsync(VectorAnalysisResult result)

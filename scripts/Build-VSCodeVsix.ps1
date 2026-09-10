@@ -59,6 +59,14 @@ try {
         Invoke-Checked 'Package VSIX' {
             npx.cmd --no-install vsce package --no-dependencies --out $vsixPath
         }
+
+        if (-not [string]::IsNullOrWhiteSpace($VSCodeExecutablePath)) {
+            Invoke-Checked 'Run installed VSIX editor tests' {
+                & (Join-Path $PSScriptRoot 'Test-InstalledVSCodeVsix.ps1') `
+                    -VsixPath $vsixPath `
+                    -VSCodeExecutablePath $VSCodeExecutablePath
+            }
+        }
     }
     finally {
         Pop-Location
