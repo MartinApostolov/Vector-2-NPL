@@ -1,0 +1,60 @@
+{
+  "name": "vector-language-support",
+  "displayName": "Vector Language Support",
+  "description": "Language support and isolated execution for the Vector programming language.",
+  "version": "0.1.0",
+  "publisher": "martinapostolov",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MartinApostolov/Vector-2-NPL.git"
+  },
+  "engines": {
+    "vscode": "^1.104.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:vector"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "vector",
+        "aliases": [
+          "Vector",
+          "vector"
+        ],
+        "extensions": [
+          ".vec"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "clean": "node ./scripts/clean.mjs",
+    "check-types": "tsc --noEmit",
+    "compile": "npm run check-types && node ./scripts/build.mjs",
+    "package:bundle": "npm run check-types && node ./scripts/build.mjs --production",
+    "vscode:prepublish": "npm run package:bundle",
+    "test:unit": "npm run compile && node --test dist-test/test/unit/*.test.js",
+    "test": "npm run test:unit"
+  },
+  "dependencies": {
+    "vscode-languageclient": "10.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/vscode": "1.104.0",
+    "@vscode/test-cli": "0.0.15",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "3.9.2",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}

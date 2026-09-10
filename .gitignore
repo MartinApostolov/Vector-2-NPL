@@ -4,6 +4,11 @@
 
 # Visual Studio
 .vs/
+src/Vector.VSCode/node_modules/
+src/Vector.VSCode/dist/
+src/Vector.VSCode/dist-test/
+src/Vector.VSCode/out/
+src/Vector.VSCode/.vscode-test/
 *.user
 *.suo
 *.userosscache
