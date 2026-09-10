@@ -32,14 +32,14 @@ async function executeCurrentDocument(
   output: LogOutputChannel,
   engineOverride?: VectorExecutionEngine,
   operation: VectorExecutionOperation = 'run'
-): Promise<void> {
+): Promise<VectorExecutionResponse | undefined> {
   const editor = window.activeTextEditor;
   if (editor === undefined || editor.document.languageId !== 'vector') {
     const message = 'Open an active Vector (.vec) editor before running this command.';
     output.error(message);
     output.show(true);
     await window.showErrorMessage(message);
-    return;
+    return undefined;
   }
 
   const document = editor.document;
@@ -83,10 +83,12 @@ async function executeCurrentDocument(
     if (!response.success) {
       await window.showErrorMessage(failureSummary(response));
     }
+    return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     output.appendLine(`Execution error: ${message}`);
     await window.showErrorMessage(`Vector command failed: ${message}`);
+    return undefined;
   }
 }
 

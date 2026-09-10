@@ -58,4 +58,42 @@ suite('Vector VS Code extension', () => {
     );
     await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
   });
+
+  test('runs registered commands from the unsaved editor buffer', async () => {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
+    assert.ok(workspaceRoot);
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.joinPath(workspaceRoot, 'activation.vec'));
+    const editor = await vscode.window.showTextDocument(document);
+    const unsavedSource = 'let value = 8;\nprint(value);\nvalue;';
+    await editor.edit(builder => {
+      builder.replace(new vscode.Range(0, 0, document.lineCount, 0), unsavedSource);
+    });
+    assert.equal(document.isDirty, true);
+
+    interface CommandResponse {
+      readonly success: boolean;
+      readonly output: readonly string[];
+      readonly result: string | null;
+      readonly disassembly: string | null;
+    }
+
+    const interpreter = await vscode.commands.executeCommand<CommandResponse>(
+      'vector.runCurrentFileWithInterpreter'
+    );
+    assert.equal(interpreter.success, true);
+    assert.deepEqual(interpreter.output, ['8']);
+    assert.equal(interpreter.result, '8');
+
+    const vm = await vscode.commands.executeCommand<CommandResponse>('vector.runCurrentFileWithVm');
+    assert.equal(vm.success, true);
+    assert.deepEqual(vm.output, ['8']);
+    assert.equal(vm.result, '8');
+
+    const bytecode = await vscode.commands.executeCommand<CommandResponse>('vector.showBytecode');
+    assert.equal(bytecode.success, true);
+    assert.deepEqual(bytecode.output, []);
+    assert.match(bytecode.disassembly ?? '', /Call/u);
+
+    await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+  });
 });

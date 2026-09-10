@@ -1,6 +1,7 @@
 **/.git/**
 **/.vs/**
 **/.vscode-test/**
+.vscode-test.mjs
 **/node_modules/**
 **/src/**
 **/test/**

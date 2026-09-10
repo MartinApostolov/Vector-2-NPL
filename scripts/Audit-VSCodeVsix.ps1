@@ -35,6 +35,7 @@ try {
 
     $forbidden = @($entries | Where-Object {
         $_ -match '(^|/)(\.git|\.vs|\.vscode-test|node_modules|src|test|dist-test|out)(/|$)' -or
+        $_ -match '(^|/)\.vscode-test\.(js|mjs|json)$' -or
         $_ -match '\.(pdb|map|user|suo)$' -or
         $_ -match '(^|/)(package-lock\.json|tsconfig\.json)$'
     })
