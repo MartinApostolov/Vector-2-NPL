@@ -17,7 +17,7 @@ public sealed class VectorLanguageServer
     private readonly TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly VectorDocumentService documents;
     private readonly VectorCompletionService completionService;
-    private readonly VectorHoverService hoverService = new();
+    private readonly VectorHoverService hoverService;
     private readonly VectorDefinitionService definitionService;
     private readonly VectorReferenceService referenceService;
     private readonly VectorRenameService renameService;
@@ -47,6 +47,7 @@ public sealed class VectorLanguageServer
             client ?? NullLanguageClient.Instance,
             options ?? VectorLanguageServerOptions.Default);
         this.completionService = new VectorCompletionService(this.documents.Modules);
+        this.hoverService = new VectorHoverService(this.documents.Modules);
         this.definitionService = new VectorDefinitionService(this.documents.Modules);
         this.referenceService = new VectorReferenceService(this.documents.Modules);
         this.renameService = new VectorRenameService(this.documents.Modules);

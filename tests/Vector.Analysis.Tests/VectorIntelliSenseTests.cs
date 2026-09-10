@@ -107,6 +107,22 @@ public sealed class VectorIntelliSenseTests
     }
 
     [Fact]
+    public void Hover_ProvidesLocalVariableAndFunctionDescriptions()
+    {
+        const string source = "let area = 42;\nfunction rectangle(width, height) { return width * height; }\nprint(area);\nrectangle(6, 7);";
+        VectorAnalysisResult analysis = Analyze(source);
+
+        VectorHoverInfo variable = Assert.IsType<VectorHoverInfo>(
+            this.hover.GetHover(analysis, source.LastIndexOf("area", StringComparison.Ordinal) + 1));
+        VectorHoverInfo function = Assert.IsType<VectorHoverInfo>(
+            this.hover.GetHover(analysis, source.LastIndexOf("rectangle", StringComparison.Ordinal) + 1));
+
+        Assert.Contains("area", variable.Markdown, StringComparison.Ordinal);
+        Assert.Contains("Vector variable", variable.Markdown, StringComparison.Ordinal);
+        Assert.Contains("rectangle(width, height)", function.Markdown, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void UnknownName_HasNoHover()
     {
         VectorAnalysisResult analysis = Analyze("mystery;");
