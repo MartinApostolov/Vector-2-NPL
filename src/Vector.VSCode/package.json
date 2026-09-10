@@ -4,7 +4,6 @@
   "description": "Language support and isolated execution for the Vector programming language.",
   "version": "0.1.0",
   "publisher": "martinapostolov",
-  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/MartinApostolov/Vector-2-NPL.git"
