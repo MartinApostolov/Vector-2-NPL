@@ -13,6 +13,7 @@ import {
   requireFile,
   resolvePayloadPaths
 } from './runtime';
+import { includeReferenceDeclarations } from './referenceMiddleware';
 import { analysisEnvironment, analysisSettingsKey, getAnalysisSettings } from './settings';
 
 export class VectorLanguageServerClient {
@@ -56,6 +57,10 @@ export class VectorLanguageServerClient {
       diagnosticCollectionName: 'vector',
       outputChannel: this.output,
       revealOutputChannelOn: RevealOutputChannelOn.Never,
+      middleware: {
+        provideReferences: (document, position, context, token, next) =>
+          next(document, position, includeReferenceDeclarations(context), token)
+      },
       connectionOptions: { maxRestartCount: 3 },
       initializationFailedHandler: error => {
         const message = `Vector language server initialization failed: ${String(error)}`;
