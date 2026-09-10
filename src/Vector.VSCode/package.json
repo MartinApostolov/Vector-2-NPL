@@ -52,7 +52,7 @@
     "vscode:prepublish": "npm run package:bundle",
     "test:unit": "npm run compile && node --test dist-test/test/unit/*.test.js",
     "test:process": "npm run build:hosts && npm run compile && node --test dist-test/test/process/*.test.js",
-    "build:hosts": "dotnet build ../Vector.LanguageServer/Vector.LanguageServer.csproj --configuration Release --no-restore",
+    "build:hosts": "dotnet build ../Vector.LanguageServer/Vector.LanguageServer.csproj --configuration Release --no-restore && dotnet build ../Vector.ExecutionHost/Vector.ExecutionHost.csproj --configuration Release --no-restore",
     "build:payload": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/Build-VSCodePayload.ps1",
     "test": "npm run test:unit && npm run test:process"
   },
