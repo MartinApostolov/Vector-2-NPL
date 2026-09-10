@@ -1,0 +1,61 @@
+import assert from 'node:assert/strict';
+import * as vscode from 'vscode';
+
+async function waitUntil(predicate: () => boolean, description: string): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  while (!predicate()) {
+    if (Date.now() >= deadline) {
+      throw new Error(`Timed out waiting for ${description}.`);
+    }
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+}
+
+suite('Vector VS Code extension', () => {
+  test('activates and registers the Vector language and commands', async () => {
+    const extension = vscode.extensions.getExtension('martinapostolov.vector-language-support');
+    assert.ok(extension, 'Vector extension was not discovered by the Extension Development Host.');
+    await extension.activate();
+    assert.equal(extension.isActive, true);
+
+    const languages = await vscode.languages.getLanguages();
+    assert.ok(languages.includes('vector'));
+    const commands = await vscode.commands.getCommands(true);
+    for (const command of [
+      'vector.runCurrentFile',
+      'vector.runCurrentFileWithInterpreter',
+      'vector.runCurrentFileWithVm',
+      'vector.showBytecode'
+    ]) {
+      assert.ok(commands.includes(command), `${command} was not registered.`);
+    }
+  });
+
+  test('starts the official language client and updates live diagnostics', async () => {
+    const document = await vscode.workspace.openTextDocument({
+      language: 'vector',
+      content: 'let missingExpression = ;'
+    });
+    const editor = await vscode.window.showTextDocument(document);
+    await waitUntil(
+      () => vscode.languages.getDiagnostics(document.uri).some(diagnostic => diagnostic.severity === vscode.DiagnosticSeverity.Error),
+      'a Vector parser diagnostic'
+    );
+
+    const completion = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      document.uri,
+      new vscode.Position(0, 3)
+    );
+    assert.ok(completion.items.some(item => item.label === 'let'));
+
+    await editor.edit(builder => {
+      builder.replace(new vscode.Range(0, 0, document.lineCount, 0), 'let missingExpression = 1;');
+    });
+    await waitUntil(
+      () => vscode.languages.getDiagnostics(document.uri).length === 0,
+      'Vector diagnostics to clear'
+    );
+    await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+  });
+});

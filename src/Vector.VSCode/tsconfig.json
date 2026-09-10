@@ -17,6 +17,7 @@
     "outDir": "dist-test",
     "types": [
       "node",
+      "mocha",
       "vscode"
     ]
   },
