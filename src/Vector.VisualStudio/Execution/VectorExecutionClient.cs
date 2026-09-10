@@ -3,15 +3,20 @@ namespace Vector.VisualStudio.Execution;
 using System.Diagnostics;
 using System.Text.Json;
 using Vector.ExecutionProtocol;
+using Vector.VisualStudio.Diagnostics;
+using Vector.VisualStudio.Packaging;
 
 public sealed class VectorExecutionClient
 {
     private readonly string hostPath;
     private readonly TimeSpan timeout;
+    private int activeHostProcessCount;
+
+    internal int ActiveHostProcessCount => Volatile.Read(ref this.activeHostProcessCount);
 
     public VectorExecutionClient()
         : this(
-            Path.Combine(AppContext.BaseDirectory, "ExecutionHost", "Vector.ExecutionHost.exe"),
+            new VectorExtensionPaths().ExecutionHostPath,
             TimeSpan.FromSeconds(30))
     {
     }
@@ -42,16 +47,19 @@ public sealed class VectorExecutionClient
             return ClientFailure(request, "host_not_found", $"Vector execution host was not found at '{this.hostPath}'.");
         }
 
+        var startInfo = new ProcessStartInfo(this.hostPath)
+        {
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        DotNetChildProcessEnvironment.UseMachineWideRuntime(startInfo);
+
         using var process = new Process
         {
-            StartInfo = new ProcessStartInfo(this.hostPath)
-            {
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            },
+            StartInfo = startInfo,
         };
 
         try
@@ -66,6 +74,29 @@ public sealed class VectorExecutionClient
             return ClientFailure(request, "host_start_failed", error.Message);
         }
 
+        Interlocked.Increment(ref this.activeHostProcessCount);
+        try
+        {
+            return await this.ExchangeAsync(process, request, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            try
+            {
+                Kill(process);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref this.activeHostProcessCount);
+            }
+        }
+    }
+
+    private async Task<VectorExecutionResponse> ExchangeAsync(
+        Process process,
+        VectorExecutionRequest request,
+        CancellationToken cancellationToken)
+    {
         Task<string> outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
         Task<string> errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
         try

@@ -30,7 +30,8 @@ public sealed class VectorReferenceService
         ArgumentNullException.ThrowIfNull(workspaceDocuments);
         cancellationToken.ThrowIfCancellationRequested();
 
-        VectorResolvedSymbol? target = this.ResolveSymbol(analysis, utf16Offset, cancellationToken);
+        VectorResolvedSymbol? target = this.ResolveSymbol(analysis, utf16Offset, cancellationToken)
+            ?? this.ResolveQualifiedExpressionMember(analysis, utf16Offset, cancellationToken);
         if (target is null || target.Symbol.IsSynthetic || target.Symbol.IsDuplicate)
         {
             return [];
@@ -117,6 +118,16 @@ public sealed class VectorReferenceService
         VectorSymbol? member = module!.Members.FirstOrDefault(symbol =>
             !symbol.IsDuplicate && symbol.Name == memberName);
         return member is null ? null : new VectorResolvedSymbol(module.Analysis, member);
+    }
+
+    private VectorResolvedSymbol? ResolveQualifiedExpressionMember(
+        VectorAnalysisResult analysis,
+        int utf16Offset,
+        CancellationToken cancellationToken)
+    {
+        VectorQualifiedReference? qualified = analysis.SemanticModel.QualifiedReferences.FirstOrDefault(candidate =>
+            candidate.PathSegments.Count >= 2 && Contains(candidate.Span, utf16Offset));
+        return qualified is null ? null : this.ResolveQualifiedMember(analysis, qualified, cancellationToken);
     }
 
     private void AddQualifiedMemberReferences(

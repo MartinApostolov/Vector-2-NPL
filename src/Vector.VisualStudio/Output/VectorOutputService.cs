@@ -9,18 +9,37 @@ public sealed class VectorOutputService : IDisposable
     private readonly SemaphoreSlim gate = new(1, 1);
     private OutputChannel? channel;
 
-    public async Task WriteAsync(
+    public async Task InitializeAsync(
         VisualStudioExtensibility extensibility,
-        string text,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(extensibility);
         await this.gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             this.channel ??= await extensibility.Views().Output.CreateOutputChannelAsync(
                 "Vector",
                 cancellationToken);
-            await this.channel.WriteLineAsync(text);
+        }
+        finally
+        {
+            this.gate.Release();
+        }
+    }
+
+    public async Task WriteAsync(
+        VisualStudioExtensibility extensibility,
+        string text,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(extensibility);
+        await this.gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            this.channel ??= await extensibility.Views().Output.CreateOutputChannelAsync(
+                "Vector",
+                cancellationToken);
+            await this.channel.WriteLineAsync(text).ConfigureAwait(false);
         }
         finally
         {

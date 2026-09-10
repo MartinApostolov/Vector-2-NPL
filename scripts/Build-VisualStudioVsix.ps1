@@ -8,9 +8,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $solution = Join-Path $repositoryRoot 'Vector.sln'
-$extensionProject = Join-Path $repositoryRoot 'src\Vector.VisualStudio\Vector.VisualStudio.csproj'
-$targetFramework = 'net8.0-windows8.0'
-$vsix = Join-Path $repositoryRoot "src\Vector.VisualStudio\bin\$Configuration\$targetFramework\Vector.VisualStudio.vsix"
+$packageProject = Join-Path $repositoryRoot 'src\Vector.VisualStudio.Package\Vector.VisualStudio.Package.csproj'
+$vsix = Join-Path $repositoryRoot "src\Vector.VisualStudio.Package\bin\$Configuration\net472\Vector.VisualStudio.Package.vsix"
 
 function Invoke-DotNet {
     param([string[]]$Arguments)
@@ -31,7 +30,7 @@ if (-not $SkipTests) {
     Invoke-DotNet -Arguments @('test', $solution, '--no-build', '--no-restore', '--configuration', $Configuration, '--verbosity', 'minimal')
 }
 
-Invoke-DotNet -Arguments @('build', $extensionProject, '--no-restore', '--configuration', $Configuration, '--verbosity', 'minimal')
+Invoke-DotNet -Arguments @('build', $packageProject, '--no-restore', '--configuration', $Configuration, '--verbosity', 'minimal')
 
 if (-not (Test-Path -LiteralPath $vsix -PathType Leaf)) {
     throw "The expected VSIX was not produced at '$vsix'."
@@ -45,20 +44,52 @@ try {
         '.vsextension/extension.json',
         '.vsextension/settingsRegistration.json',
         '.vsextension/string-resources.json',
+        'Vector.LanguageConfiguration.pkgdef',
         'Grammars/vector.tmLanguage.json',
         'LanguageConfiguration/vector-language-configuration.json',
-        'LanguageServer/Vector.LanguageServer.exe',
-        'LanguageServer/Vector.Analysis.dll',
-        'LanguageServer/Vector.Core.dll',
-        'ExecutionHost/Vector.ExecutionHost.exe',
-        'ExecutionHost/Vector.ExecutionProtocol.dll',
-        'ExecutionHost/Vector.Core.dll',
-        'ExecutionHost/Vector.Plugins.dll'
+        'OutOfProc/Vector.VisualStudio.dll',
+        'OutOfProc/LanguageServer/Vector.LanguageServer.exe',
+        'OutOfProc/LanguageServer/Vector.Analysis.dll',
+        'OutOfProc/LanguageServer/Vector.Core.dll',
+        'OutOfProc/ExecutionHost/Vector.ExecutionHost.exe',
+        'OutOfProc/ExecutionHost/Vector.ExecutionProtocol.dll',
+        'OutOfProc/ExecutionHost/Vector.Core.dll',
+        'OutOfProc/ExecutionHost/Vector.Plugins.dll'
     )
 
     $missing = @($requiredEntries | Where-Object { $_ -notin $entries })
     if ($missing.Count -gt 0) {
         throw "VSIX payload is missing required entries: $($missing -join ', ')"
+    }
+
+    $manifestEntry = $archive.GetEntry('extension.vsixmanifest')
+    $manifestReader = [System.IO.StreamReader]::new($manifestEntry.Open())
+    try {
+        [xml]$manifest = $manifestReader.ReadToEnd()
+    }
+    finally {
+        $manifestReader.Dispose()
+    }
+
+    $installation = $manifest.PackageManifest.Installation
+    if ($installation.ExtensionType -ne 'VSSDK+VisualStudio.Extensibility') {
+        throw "VSIX must be hybrid so Visual Studio processes its TextMate pkgdef registration."
+    }
+
+    $extensionEntry = $archive.GetEntry('.vsextension/extension.json')
+    $extensionReader = [System.IO.StreamReader]::new($extensionEntry.Open())
+    try {
+        $extensionMetadata = $extensionReader.ReadToEnd() | ConvertFrom-Json
+    }
+    finally {
+        $extensionReader.Dispose()
+    }
+
+    $invalidServices = @($extensionMetadata.services | Where-Object {
+        $_.serviceBaseDirectory -ne '.\OutOfProc' -or $_.entryPoint.assemblyPath -ne 'Vector.VisualStudio.dll'
+    })
+    if ($invalidServices.Count -gt 0) {
+        throw 'VisualStudio.Extensibility services must load out of the isolated OutOfProc folder.'
     }
 }
 finally {

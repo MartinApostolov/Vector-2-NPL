@@ -63,6 +63,8 @@ public sealed class VectorEditorConfigurationTests
         Assert.Contains("TextMate\\Repositories", pkgdef, StringComparison.Ordinal);
         Assert.Contains("$PackageFolder$\\Grammars", pkgdef, StringComparison.Ordinal);
         Assert.Contains("\"source.vector\"", pkgdef, StringComparison.Ordinal);
+        Assert.Contains("TextMate\\LanguageConfiguration\\ContentTypeMapping", pkgdef, StringComparison.Ordinal);
+        Assert.Contains("\"vector\"", pkgdef, StringComparison.Ordinal);
         Assert.Contains("vector-language-configuration.json", pkgdef, StringComparison.Ordinal);
     }
 
@@ -70,12 +72,15 @@ public sealed class VectorEditorConfigurationTests
     public void VsixManifest_RegistersLanguageConfigurationPkgdef()
     {
         string root = FindRepositoryRoot();
-        XDocument manifest = XDocument.Load(Path.Combine(root, "src/Vector.VisualStudio/source.extension.vsixmanifest"));
+        XDocument manifest = XDocument.Load(Path.Combine(root, "src/Vector.VisualStudio.Package/source.extension.vsixmanifest"));
         XNamespace schema = "http://schemas.microsoft.com/developer/vsx-schema/2011";
 
         XElement asset = Assert.Single(manifest.Descendants(schema + "Asset"));
         Assert.Equal("Microsoft.VisualStudio.VsPackage", asset.Attribute("Type")?.Value);
         Assert.Equal("Vector.LanguageConfiguration.pkgdef", asset.Attribute("Path")?.Value);
+
+        XElement installation = Assert.Single(manifest.Descendants(schema + "Installation"));
+        Assert.Equal("VSSDK+VisualStudio.Extensibility", installation.Attribute("ExtensionType")?.Value);
     }
 
     private static JsonDocument ReadJson(string relativePath)

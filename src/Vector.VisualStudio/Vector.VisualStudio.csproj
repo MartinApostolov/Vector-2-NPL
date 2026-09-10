@@ -8,6 +8,8 @@
     <NeutralLanguage>en-US</NeutralLanguage>
     <AssemblyName>Vector.VisualStudio</AssemblyName>
     <RootNamespace>Vector.VisualStudio</RootNamespace>
+    <AssemblyVSIXSubPath>OutOfProc</AssemblyVSIXSubPath>
+    <CreateVsixContainer>false</CreateVsixContainer>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,21 +21,6 @@
     <ProjectReference Include="..\Vector.ExecutionProtocol\Vector.ExecutionProtocol.csproj" />
     <ProjectReference Include="..\Vector.ExecutionHost\Vector.ExecutionHost.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\Vector.LanguageServer\Vector.LanguageServer.csproj" ReferenceOutputAssembly="false" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="Grammars\vector.tmLanguage.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <IncludeInVSIX>true</IncludeInVSIX>
-    </Content>
-    <Content Include="LanguageConfiguration\vector-language-configuration.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <IncludeInVSIX>true</IncludeInVSIX>
-    </Content>
-    <Content Include="Vector.LanguageConfiguration.pkgdef">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <IncludeInVSIX>true</IncludeInVSIX>
-    </Content>
   </ItemGroup>
 
   <Target Name="CopyVectorLanguageServer" AfterTargets="Build">
@@ -59,7 +46,7 @@
   <Target Name="IncludeVectorLanguageServerInVsix" BeforeTargets="GetVsixSourceItems">
     <ItemGroup>
       <VSIXSourceItem Include="..\Vector.LanguageServer\bin\$(Configuration)\net8.0\*">
-        <VSIXSubPath>LanguageServer</VSIXSubPath>
+        <VSIXSubPath>OutOfProc\LanguageServer</VSIXSubPath>
       </VSIXSourceItem>
     </ItemGroup>
   </Target>
@@ -67,15 +54,18 @@
   <Target Name="IncludeVectorExecutionHostInVsix" BeforeTargets="GetVsixSourceItems">
     <ItemGroup>
       <VSIXSourceItem Include="..\Vector.ExecutionHost\bin\$(Configuration)\net8.0\*">
-        <VSIXSubPath>ExecutionHost</VSIXSubPath>
+        <VSIXSubPath>OutOfProc\ExecutionHost</VSIXSubPath>
       </VSIXSourceItem>
     </ItemGroup>
   </Target>
 
-  <Target Name="UseVectorVsixManifest" BeforeTargets="DetokenizeVsixManifestFile">
+  <!-- Project output groups are consumed from the sibling VSSDK container. Make generated
+       metadata paths absolute so the container does not resolve them under its own bin folder. -->
+  <Target Name="NormalizeGeneratedExtensionMetadataPaths" AfterTargets="GetVsixSourceItems" BeforeTargets="ExtensionFilesOutputGroup">
     <ItemGroup>
-      <SourceVsixManifest Remove="@(SourceVsixManifest)" />
-      <SourceVsixManifest Include="$(MSBuildProjectDirectory)\source.extension.vsixmanifest" />
+      <VSIXSourceItem Update="@(VSIXSourceItem)">
+        <FinalOutputPath>%(FullPath)</FinalOutputPath>
+      </VSIXSourceItem>
     </ItemGroup>
   </Target>
 

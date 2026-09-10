@@ -3,3 +3,8 @@
 
 [$RootKey$\TextMate\LanguageConfiguration\GrammarMapping]
 "source.vector"="$PackageFolder$\LanguageConfiguration\vector-language-configuration.json"
+
+// LSP-backed documents use the generated "vector" editor content type. VS 2026
+// therefore needs the content-type mapping as well as the TextMate scope mapping.
+[$RootKey$\TextMate\LanguageConfiguration\ContentTypeMapping]
+"vector"="$PackageFolder$\LanguageConfiguration\vector-language-configuration.json"

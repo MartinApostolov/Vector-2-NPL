@@ -113,6 +113,42 @@ public sealed class VectorReferenceTests
         }
     }
 
+    [Theory]
+    [InlineData("local")]
+    [InlineData("geometry")]
+    [InlineData("rectangleArea")]
+    public void LocalModuleMember_FindReferencesAcceptsAnyCaretWithinQualifiedExpression(string segment)
+    {
+        string root = CreateTemporaryDirectory();
+        try
+        {
+            WriteModule(
+                root,
+                "local",
+                "geometry",
+                "function rectangleArea(width, height) { return width * height; }");
+            const string source = "import local.geometry;\nlocal.geometry.rectangleArea(6, 7);";
+            VectorAnalysisResult importer = AnalyzeFile(root, "main.vec", source);
+            var service = new VectorReferenceService(new VectorModuleIndex());
+
+            int expressionStart = source.LastIndexOf("local.geometry.rectangleArea", StringComparison.Ordinal);
+            int caret = source.IndexOf(segment, expressionStart, StringComparison.Ordinal) + 1;
+            IReadOnlyList<VectorReferenceLocation> references = service.GetReferences(
+                importer,
+                caret,
+                [importer],
+                includeDeclaration: true);
+
+            Assert.Equal(2, references.Count);
+            Assert.Contains(references, location => location.IsDeclaration);
+            Assert.Contains(references, location => location.Uri == importer.Document.Uri && !location.IsDeclaration);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Fact]
     public void UndefinedAndBuiltInNames_ReturnNoReferences()
     {

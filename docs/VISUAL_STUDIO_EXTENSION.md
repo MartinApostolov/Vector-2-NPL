@@ -1,6 +1,6 @@
 # Vector Visual Studio extension
 
-The Vector Visual Studio extension v1 targets **Visual Studio Community 2026** on 64-bit Windows. It uses the VisualStudio.Extensibility out-of-process model and is packaged as a VSIX. The manifest accepts Visual Studio 17.14 or newer so the same package can load in the current 2026 release while retaining the SDK's supported minimum.
+The Vector Visual Studio extension v1 targets **Visual Studio Community 2026** on 64-bit Windows. Its code runs with the VisualStudio.Extensibility out-of-process model. Following Microsoft's `ExtensionWithTraditionalComponents` architecture, a separate .NET Framework VSIX container carries the traditional TextMate `.pkgdef`, grammar, and language configuration, while the .NET 8 extension and its dependencies live under an isolated `OutOfProc` folder. The container is marked `VSSDK+VisualStudio.Extensibility`, allowing Visual Studio to process the traditional registration without converting the language server or commands into in-process components. The manifest accepts Visual Studio 17.14 or newer so the same package can load in the current 2026 release while retaining the SDK's supported minimum.
 
 ## Features
 
@@ -24,7 +24,7 @@ The extension also contributes these commands to the **Extensions** menu when a 
 - **Vector: Run Current File with VM**;
 - **Vector: Show Bytecode** — compiles and disassembles without running the program.
 
-All commands use the current in-memory editor buffer, including unsaved changes. Results, program output, diagnostics, disassembly, and host failures are written to the **Vector** Output channel.
+All commands use the current in-memory editor buffer, including unsaved changes. Results, program output, diagnostics, disassembly, and host failures are written to the **Vector** Output channel. The channel is created when the command set initializes; setup, editor-snapshot, settings, and host failures also produce a user-visible prompt instead of disappearing as an unobserved command error.
 
 ## Prerequisites
 
@@ -35,14 +35,18 @@ For development and packaging:
 - Visual Studio Community 2026 with the core editor and .NET development tooling;
 - NuGet access for the first restore.
 
-The extension itself runs out of process on .NET 8. A debugger, custom `.vecproj` project system, Vector package manager, VS Code client, and NPL translator are not included in this phase.
+The extension code itself runs out of process on .NET 8. Its only traditional VSSDK component is declarative TextMate registration, so installation or update requires a Visual Studio restart. A debugger, custom `.vecproj` project system, Vector package manager, VS Code client, and NPL translator are not included in this phase.
 
 ## Architecture and safety boundary
 
 ```text
 Visual Studio Community 2026
           |
-          +-- Vector.VisualStudio (thin out-of-process shell)
+          +-- Vector.VisualStudio.Package (.NET Framework VSIX container)
+          |       |
+          |       +-- traditional TextMate registration and assets
+          |
+          +-- OutOfProc/Vector.VisualStudio (thin .NET 8 shell)
           |       |
           |       +-- stdio LSP --> Vector.LanguageServer
           |       |                    |
@@ -55,7 +59,7 @@ Visual Studio Community 2026
           +-- editor UI: diagnostics, completion, navigation, Output
 ```
 
-`Vector.VisualStudio` owns only Visual Studio registration, settings, command plumbing, server/host process startup, and Output integration. Language intelligence lives in `Vector.Analysis` and is exposed through the editor-independent `Vector.LanguageServer`. Execution uses the separate `Vector.ExecutionHost` process and the neutral `Vector.ExecutionProtocol` contract.
+`Vector.VisualStudio` owns only Visual Studio registration, settings, command plumbing, server/host process startup, and Output integration. Packaged child executables are resolved from the physical `Vector.VisualStudio.dll` installation directory; `AppContext.BaseDirectory` belongs to Visual Studio's ServiceHub host and is never used as the extension content root. Language intelligence lives in `Vector.Analysis` and is exposed through the editor-independent `Vector.LanguageServer`. Execution uses the separate `Vector.ExecutionHost` process and the neutral `Vector.ExecutionProtocol` contract.
 
 Static editor operations never execute a Vector program and never load plugin DLLs. Plugin paths are accepted only by explicit run commands and are sent to `Vector.ExecutionHost`. Plugins are trusted .NET code and are not sandboxed, so configure only DLLs you trust. **Show Bytecode** deliberately suppresses configured plugins and never executes source side effects.
 
@@ -89,10 +93,10 @@ dotnet build Vector.sln --configuration Release
 dotnet test Vector.sln --no-build --configuration Release
 ```
 
-Building `src/Vector.VisualStudio/Vector.VisualStudio.csproj` produces:
+Building `src/Vector.VisualStudio.Package/Vector.VisualStudio.Package.csproj` produces:
 
 ```text
-src/Vector.VisualStudio/bin/Release/net8.0-windows8.0/Vector.VisualStudio.vsix
+src/Vector.VisualStudio.Package/bin/Release/net472/Vector.VisualStudio.Package.vsix
 ```
 
 The repository also provides a packaging gate that restores, builds, tests, and inspects all required VSIX entries:
@@ -103,25 +107,26 @@ powershell -ExecutionPolicy Bypass -File scripts/Build-VisualStudioVsix.ps1
 
 Use `-SkipRestore` only after dependencies are already restored. The script leaves all generated files under ignored `bin`/`obj` directories and prints the final VSIX path and SHA-256 hash.
 
-The package audit requires the extension metadata, grammar, language configuration, `Vector.LanguageServer` with `Vector.Analysis`, and `Vector.ExecutionHost` with `Vector.ExecutionProtocol`, `Vector.Core`, and `Vector.Plugins`.
+The package audit requires the hybrid manifest, TextMate `.pkgdef`, grammar, language configuration, extension metadata, `Vector.LanguageServer` with `Vector.Analysis`, and `Vector.ExecutionHost` with `Vector.ExecutionProtocol`, `Vector.Core`, and `Vector.Plugins`.
 
 ## Experimental Instance workflow
 
 Automated tests exercise the shared analysis, real stdio language-server process, real execution-host process, generated VSIX metadata, and packaged payload. Graphical behavior still needs an installed Visual Studio instance:
 
 1. Open `Vector.sln` in Visual Studio Community 2026.
-2. Select `Vector.VisualStudio` as the startup project and start debugging to open the Experimental Instance.
+2. Select `Vector.VisualStudio.Package` as the startup project and start debugging to open the Experimental Instance.
 3. Open `examples/visual-studio-acceptance/main.vec` and follow [the acceptance checklist](../examples/visual-studio-acceptance/README.md).
 4. Confirm diagnostics in the Error List/editor, IntelliSense UI, navigation, settings, commands, and Vector Output presentation.
 5. Close the Experimental Instance and verify the language-server and execution-host child processes do not remain running.
 
 This repository does not claim that graphical checklist was executed by automated tooling.
 
-To install a Release package outside the Experimental Instance, close Visual Studio, open `Vector.VisualStudio.vsix`, accept the VSIX Installer prompt for the intended Community instance, and restart Visual Studio. Uninstall or update it through **Extensions > Manage Extensions**.
+To install a Release package outside the Experimental Instance, close Visual Studio, open `Vector.VisualStudio.Package.vsix`, accept the VSIX Installer prompt for the intended Community instance, and restart Visual Studio. Uninstall or update it through **Extensions > Manage Extensions**.
 
 ## Troubleshooting
 
-- **No Vector language features:** confirm the file ends in `.vec`, the extension is enabled, and `LanguageServer/Vector.LanguageServer.exe` exists in the installed payload. Check the Visual Studio Activity Log and trace output for server startup errors.
+- **No Vector language features:** confirm the file ends in `.vec`, the extension is enabled, and `OutOfProc/LanguageServer/Vector.LanguageServer.exe` exists in the installed payload. Server lifecycle events, the resolved executable path, runtime-root selection, stderr, initialization state, and exit code are written to `%LOCALAPPDATA%\Vector\VisualStudio\language-server.log` and to the VisualStudio.Extensibility ServiceHub trace. Child processes explicitly use the machine-wide .NET 8 runtime instead of an inherited Visual Studio-private `DOTNET_ROOT` that may contain only .NET 10.
+- **No highlighting or bracket behavior after an update:** close every `.vec` editor and restart Visual Studio. The grammar repository and the `vector` LSP content-type mapping are registered at install time through the hybrid VSIX's `Vector.LanguageConfiguration.pkgdef`.
 - **Commands are disabled:** make a `.vec` editor the active document. Commands intentionally apply only to the registered Vector content type.
 - **Local module is missing:** leave Program root empty when modules live beneath the current file's directory, or configure the existing directory that contains the module's qualified path.
 - **No live squiggles:** confirm Live diagnostics is enabled. Toggling analysis settings restarts the server connection; reopening the document/Experimental Instance is a useful manual recovery check.

@@ -21,7 +21,7 @@ public sealed class AboutVectorExtensionCommand : Command
     public override async Task ExecuteCommandAsync(IClientContext context, CancellationToken cancellationToken)
     {
         await this.Extensibility.Shell().ShowPromptAsync(
-            "Vector Language Support is loaded.\n\nCommit 75 provides the Visual Studio extension shell and .vec document registration.",
+            "Vector Language Support is loaded.\n\nThe extension provides .vec language tooling, execution commands, settings, and bytecode disassembly.",
             PromptOptions.OK,
             cancellationToken);
     }

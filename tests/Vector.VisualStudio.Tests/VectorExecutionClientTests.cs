@@ -25,6 +25,27 @@ public sealed class VectorExecutionClientTests
         Assert.Equal("42", response.Result);
     }
 
+    [Theory]
+    [InlineData(VectorExecutionEngine.Interpreter)]
+    [InlineData(VectorExecutionEngine.Vm)]
+    public async Task ExecuteAsync_RunsVisualStudioAcceptanceFixture(VectorExecutionEngine engine)
+    {
+        string sourcePath = FindRepositoryFile("examples", "visual-studio-acceptance", "main.vec");
+        var client = CreateClient();
+
+        VectorExecutionResponse response = await client.ExecuteAsync(new VectorExecutionRequest
+        {
+            Source = await File.ReadAllTextAsync(sourcePath),
+            SourcePath = sourcePath,
+            ProgramRoot = Path.GetDirectoryName(sourcePath),
+            Engine = engine,
+        });
+
+        Assert.True(response.Success);
+        Assert.Equal(["Vector Visual Studio acceptance", "42"], response.Output);
+        Assert.Equal("42", response.Result);
+    }
+
     [Fact]
     public async Task ExecuteAsync_DisassemblesWithoutExecutingSource()
     {
@@ -43,6 +64,27 @@ public sealed class VectorExecutionClientTests
         Assert.Null(response.Result);
         Assert.Contains("unsaved.vec", response.Disassembly, StringComparison.Ordinal);
         Assert.Contains("Call", response.Disassembly, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DisassemblesVisualStudioAcceptanceFixtureWithoutExecutingIt()
+    {
+        string sourcePath = FindRepositoryFile("examples", "visual-studio-acceptance", "main.vec");
+
+        VectorExecutionResponse response = await CreateClient().ExecuteAsync(new VectorExecutionRequest
+        {
+            Source = await File.ReadAllTextAsync(sourcePath),
+            SourcePath = sourcePath,
+            ProgramRoot = Path.GetDirectoryName(sourcePath),
+            Engine = VectorExecutionEngine.Vm,
+            Operation = VectorExecutionOperation.Disassemble,
+        });
+
+        Assert.True(response.Success);
+        Assert.Empty(response.Output);
+        Assert.Null(response.Result);
+        Assert.Contains("main.vec", response.Disassembly, StringComparison.Ordinal);
+        Assert.Contains("rectangleArea", response.Disassembly, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -148,6 +190,23 @@ public sealed class VectorExecutionClientTests
         Assert.Equal("plugin_load_failed", Assert.IsType<VectorHostFailure>(response.HostFailure).Code);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_RepeatedRunsLeaveNoActiveHostProcesses()
+    {
+        var client = CreateClient();
+
+        for (int index = 0; index < 8; index++)
+        {
+            VectorExecutionResponse response = await client.ExecuteAsync(new VectorExecutionRequest
+            {
+                Source = $"print({index});",
+                Engine = index % 2 == 0 ? VectorExecutionEngine.Interpreter : VectorExecutionEngine.Vm,
+            });
+            Assert.True(response.Success);
+            Assert.Equal(0, client.ActiveHostProcessCount);
+        }
+    }
+
     private static VectorExecutionClient CreateClient(TimeSpan? timeout = null) => new(
         FindExecutionHost(),
         timeout ?? TimeSpan.FromSeconds(10));
@@ -174,5 +233,21 @@ public sealed class VectorExecutionClientTests
         }
 
         throw new FileNotFoundException("The Release Vector execution host was not found from the test output directory.");
+    }
+
+    private static string FindRepositoryFile(params string[] path)
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Vector.sln")))
+            {
+                return Path.Combine([directory.FullName, .. path]);
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException("Vector.sln was not found from the test output directory.");
     }
 }

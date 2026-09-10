@@ -72,6 +72,43 @@ public sealed class LanguageServerReferenceTests
         }
     }
 
+    [Fact]
+    public async Task References_TracksAcceptanceFunctionFromQualifiedUseWhenModuleIsClosed()
+    {
+        string root = Path.Combine(
+            Path.GetTempPath(),
+            "vector lsp acceptance references " + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "local"));
+        try
+        {
+            string modulePath = Path.Combine(root, "local", "geometry.vec");
+            string mainPath = Path.Combine(root, "main.vec");
+            const string moduleSource = "function rectangleArea(width, height) { return width * height; }";
+            const string mainSource = "import local.geometry;\nlocal.geometry.rectangleArea(6, 7);";
+            await File.WriteAllTextAsync(modulePath, moduleSource);
+            var server = new VectorLanguageServer(options: new VectorLanguageServerOptions(true, root));
+            await server.InitializeAsync(JObject.Parse("{}"), CancellationToken.None);
+            await server.InitializedAsync(new object(), CancellationToken.None);
+            Uri mainUri = new(mainPath);
+            await OpenAsync(server, mainUri, mainSource);
+
+            Location[] locations = await FindAsync(
+                server,
+                mainUri,
+                1,
+                "local.geometry.".Length + 1,
+                includeDeclaration: true);
+
+            Assert.Equal(2, locations.Length);
+            Assert.Contains(locations, location => location.Uri == mainUri);
+            Assert.Contains(locations, location => location.Uri.LocalPath == Path.GetFullPath(modulePath));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static async Task<VectorLanguageServer> CreateServerAsync(Uri uri, string source)
     {
         var server = new VectorLanguageServer();

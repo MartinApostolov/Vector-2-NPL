@@ -1,6 +1,6 @@
 import local.geometry;
 
-let size = 6;
+let size = 8;
 let area = local.geometry.rectangleArea(size, 7);
 print("Vector Visual Studio acceptance");
 print(area);

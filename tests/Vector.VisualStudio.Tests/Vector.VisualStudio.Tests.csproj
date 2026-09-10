@@ -21,12 +21,19 @@
     <ProjectReference Include="..\..\src\Vector.ExecutionHost\Vector.ExecutionHost.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\src\Vector.ExecutionProtocol\Vector.ExecutionProtocol.csproj" />
     <ProjectReference Include="..\..\src\Vector.VisualStudio\Vector.VisualStudio.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\src\Vector.VisualStudio.Package\Vector.VisualStudio.Package.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
+    </ProjectReference>
     <ProjectReference Include="..\Vector.TestPlugin.Acceptance\Vector.TestPlugin.Acceptance.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Include="..\..\src\Vector.VisualStudio\Execution\VectorExecutionClient.cs" Link="Production\VectorExecutionClient.cs" />
     <Compile Include="..\..\src\Vector.VisualStudio\Execution\VectorExecutionRequestFactory.cs" Link="Production\VectorExecutionRequestFactory.cs" />
+    <Compile Include="..\..\src\Vector.VisualStudio\Diagnostics\VectorLanguageServerLog.cs" Link="Production\VectorLanguageServerLog.cs" />
+    <Compile Include="..\..\src\Vector.VisualStudio\Diagnostics\DotNetChildProcessEnvironment.cs" Link="Production\DotNetChildProcessEnvironment.cs" />
+    <Compile Include="..\..\src\Vector.VisualStudio\Packaging\VectorExtensionPaths.cs" Link="Production\VectorExtensionPaths.cs" />
     <Compile Include="..\..\src\Vector.VisualStudio\Output\VectorExecutionOutputFormatter.cs" Link="Production\VectorExecutionOutputFormatter.cs" />
     <Compile Include="..\..\src\Vector.VisualStudio\Settings\VectorIdeSettings.cs" Link="Production\VectorIdeSettings.cs" />
   </ItemGroup>

@@ -6,6 +6,7 @@ namespace Vector.Tests.VisualStudio;
 public sealed class VisualStudioExtensionProjectTests
 {
     private const string ExtensionProjectPath = "src/Vector.VisualStudio/Vector.VisualStudio.csproj";
+    private const string PackageProjectPath = "src/Vector.VisualStudio.Package/Vector.VisualStudio.Package.csproj";
     private const string ExtensionSourcePath = "src/Vector.VisualStudio/VectorExtension.cs";
     private const string DocumentTypeSourcePath = "src/Vector.VisualStudio/VectorDocumentType.cs";
     private const string LanguageServerProviderSourcePath = "src/Vector.VisualStudio/VectorLanguageServerProvider.cs";
@@ -19,7 +20,8 @@ public sealed class VisualStudioExtensionProjectTests
         var solution = File.ReadAllText(Path.Combine(root, "Vector.sln"));
 
         Assert.Contains(@"src\Vector.VisualStudio\Vector.VisualStudio.csproj", solution, StringComparison.Ordinal);
-        Assert.Contains("{A1C79C49-CC56-4A32-A8A5-D67F41E12175}.Debug|Any CPU.Deploy.0 = Debug|Any CPU", solution, StringComparison.Ordinal);
+        Assert.Contains(@"src\Vector.VisualStudio.Package\Vector.VisualStudio.Package.csproj", solution, StringComparison.Ordinal);
+        Assert.Contains("{CC2016D1-1A14-45B7-A4E3-0C6E58E99C18}.Debug|Any CPU.Deploy.0 = Debug|Any CPU", solution, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -31,7 +33,23 @@ public sealed class VisualStudioExtensionProjectTests
         Assert.Contains("<TargetFramework>net8.0-windows8.0</TargetFramework>", project, StringComparison.Ordinal);
         Assert.Contains("Microsoft.VisualStudio.Extensibility.Sdk\" Version=\"17.14.40608\"", project, StringComparison.Ordinal);
         Assert.Contains("Microsoft.VisualStudio.Extensibility.Build\" Version=\"17.14.40608\"", project, StringComparison.Ordinal);
+        Assert.Contains("<AssemblyVSIXSubPath>OutOfProc</AssemblyVSIXSubPath>", project, StringComparison.Ordinal);
+        Assert.Contains("<CreateVsixContainer>false</CreateVsixContainer>", project, StringComparison.Ordinal);
         Assert.DoesNotContain("Vector.Core", project, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PackageProject_IsSeparateTraditionalContainerForOutOfProcessExtension()
+    {
+        var root = FindRepositoryRoot();
+        string packageProject = File.ReadAllText(Path.Combine(root, PackageProjectPath));
+
+        Assert.Contains("<TargetFramework>net472</TargetFramework>", packageProject, StringComparison.Ordinal);
+        Assert.Contains("<VssdkCompatibleExtension>true</VssdkCompatibleExtension>", packageProject, StringComparison.Ordinal);
+        Assert.Contains("<ReferenceOutputAssembly>false</ReferenceOutputAssembly>", packageProject, StringComparison.Ordinal);
+        Assert.Contains("<SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>", packageProject, StringComparison.Ordinal);
+        Assert.Contains("<IncludeOutputGroupsInVSIX>ExtensionFilesOutputGroup</IncludeOutputGroupsInVSIX>", packageProject, StringComparison.Ordinal);
+        Assert.Contains("Vector.LanguageConfiguration.pkgdef", packageProject, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -66,6 +84,23 @@ public sealed class VisualStudioExtensionProjectTests
         Assert.Contains("ShowPromptAsync", commandSource, StringComparison.Ordinal);
         Assert.DoesNotContain("VectorEngine", commandSource, StringComparison.Ordinal);
         Assert.DoesNotContain("Process.Start", commandSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("Commit 75", commandSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExecutionCommands_InitializeOutputAndSurfaceUnexpectedFailures()
+    {
+        var root = FindRepositoryRoot();
+        string commandSource = File.ReadAllText(Path.Combine(
+            root,
+            "src/Vector.VisualStudio/Commands/VectorExecutionCommand.cs"));
+
+        Assert.Contains("override async Task InitializeAsync", commandSource, StringComparison.Ordinal);
+        Assert.Contains("output.InitializeAsync", commandSource, StringComparison.Ordinal);
+        Assert.Contains("GetActiveTextViewAsync", commandSource, StringComparison.Ordinal);
+        Assert.Contains("Document.Text.CopyToString()", commandSource, StringComparison.Ordinal);
+        Assert.Contains("catch (Exception error)", commandSource, StringComparison.Ordinal);
+        Assert.Contains("ShowPromptAsync", commandSource, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -89,7 +124,7 @@ public sealed class VisualStudioExtensionProjectTests
 
         Assert.Contains("Vector.LanguageServer\\Vector.LanguageServer.csproj", project, StringComparison.Ordinal);
         Assert.Contains("IncludeVectorLanguageServerInVsix", project, StringComparison.Ordinal);
-        Assert.Contains("<VSIXSubPath>LanguageServer</VSIXSubPath>", project, StringComparison.Ordinal);
+        Assert.Contains("<VSIXSubPath>OutOfProc\\LanguageServer</VSIXSubPath>", project, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -99,10 +134,23 @@ public sealed class VisualStudioExtensionProjectTests
         var provider = File.ReadAllText(Path.Combine(root, LanguageServerProviderSourcePath));
 
         Assert.Contains("DocumentFilter.FromDocumentType(VectorExtension.VectorDocumentType)", provider, StringComparison.Ordinal);
-        Assert.Contains("Vector.LanguageServer.exe", provider, StringComparison.Ordinal);
         Assert.Contains("RedirectStandardInput = true", provider, StringComparison.Ordinal);
         Assert.Contains("RedirectStandardOutput = true", provider, StringComparison.Ordinal);
         Assert.Contains("Kill(entireProcessTree: true)", provider, StringComparison.Ordinal);
+        Assert.Contains("TraceSource traceSource", provider, StringComparison.Ordinal);
+        Assert.Contains("beforeInitializeCompleted", provider, StringComparison.Ordinal);
+        Assert.Contains("Settings restart deferred", provider, StringComparison.Ordinal);
+        Assert.Contains("StopServer() called", provider, StringComparison.Ordinal);
+        Assert.Contains("VectorExtensionPaths", provider, StringComparison.Ordinal);
+        Assert.Contains("this.extensionPaths.LanguageServerPath", provider, StringComparison.Ordinal);
+        Assert.DoesNotContain("Path.GetFullPath(AppContext.BaseDirectory)", provider, StringComparison.Ordinal);
+        Assert.Contains("DotNetChildProcessEnvironment.UseMachineWideRuntime", provider, StringComparison.Ordinal);
+
+        string executionClient = File.ReadAllText(Path.Combine(
+            root,
+            "src/Vector.VisualStudio/Execution/VectorExecutionClient.cs"));
+        Assert.Contains("new VectorExtensionPaths().ExecutionHostPath", executionClient, StringComparison.Ordinal);
+        Assert.DoesNotContain("Path.Combine(AppContext.BaseDirectory", executionClient, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()
