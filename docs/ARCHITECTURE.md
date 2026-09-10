@@ -1,6 +1,6 @@
 # Vector Architecture
 
-**Status:** Runtime and Visual Studio tooling architecture overview
+**Status:** Runtime, Visual Studio, and Visual Studio Code tooling architecture overview
 **Runtime:** C# / .NET 8  
 **Execution backends:** Tree-walking interpreter and stack-based bytecode VM
 
@@ -40,11 +40,11 @@ Editor tooling is layered around—not inside—the formal language runtime:
                              ^
                              |
                     Vector.LanguageServer
-                             ^
-                             |
-                    Vector.VisualStudio
-                             |
-                 Visual Studio Community 2026
+                       ^             ^
+                       |             |
+          Vector.VisualStudio     Vector.VSCode
+                       |             |
+     Visual Studio Community 2026   Visual Studio Code
 
 Explicit run command -> Vector.ExecutionProtocol -> Vector.ExecutionHost
                                                     /              \
@@ -219,7 +219,7 @@ allowing VM failures to map back to Vector source. Imported module failures keep
 imported file's source identity, and the CLI formats available file, line, column, source
 line, and marker information for the user.
 
-## 10. Editor-independent analysis and Visual Studio integration
+## 10. Editor-independent analysis and IDE integrations
 
 `Vector.Analysis` analyzes physical or in-memory/generated source without executing it. It
 reuses the formal `Vector.Core` lexer/parser and adds workspace snapshots, UTF-16 line
@@ -228,7 +228,7 @@ document structure, definition, signature help, references, and conservative ren
 
 `Vector.LanguageServer` exposes that same model through standard stdio LSP requests and
 notifications. It owns document versions, rapid-edit cancellation, diagnostic publication,
-and server lifecycle but contains no editor API. This allows another editor to reuse the
+and server lifecycle but contains no editor API. Both supported editor clients reuse this
 same process.
 
 `Vector.VisualStudio` is a thin out-of-process VisualStudio.Extensibility shell. It
@@ -238,8 +238,22 @@ the current in-memory buffer to `Vector.ExecutionHost` through `Vector.Execution
 The host—not Visual Studio—loads trusted configured plugins and invokes the existing
 interpreter or VM.
 
+`Vector.VSCode` is a thin TypeScript Visual Studio Code client. It uses the official
+`vscode-languageclient` package over stdio to launch the same packaged
+`Vector.LanguageServer`, and it sends explicit run/disassemble requests to the same
+`Vector.ExecutionHost` protocol used by Visual Studio. Its TextMate grammar and language
+configuration are kept aligned with the Visual Studio extension, while editor-specific
+activation, commands, settings, output-channel integration, packaging, and tests stay in
+the VS Code project.
+
+In both editors, static language analysis remains separate from execution: diagnostics,
+completion, navigation, references, and rename do not execute Vector source or load plugin
+DLLs. Execution happens only through an explicit user command and the isolated execution
+host.
+
 The complete feature, build, package, and safety documentation is in
-[VISUAL_STUDIO_EXTENSION.md](VISUAL_STUDIO_EXTENSION.md).
+[VISUAL_STUDIO_EXTENSION.md](VISUAL_STUDIO_EXTENSION.md) and
+[VSCODE_EXTENSION.md](VSCODE_EXTENSION.md).
 
 ## 11. Key design decisions
 
@@ -258,8 +272,9 @@ The complete feature, build, package, and safety documentation is in
 - **Natural language remains outside the formal core.** A future NLP layer may translate
   instructions into inspectable Vector source/AST, but the current lexer/parser remain
   deterministic.
-- **Editors are clients, not language implementations.** Visual Studio delegates analysis
-  and execution to shared out-of-process services, preserving future VS Code reuse.
+- **Editors are clients, not language implementations.** Visual Studio and Visual Studio
+  Code delegate analysis and execution to the same editor-independent services instead of
+  implementing separate Vector language behavior.
 - **Analysis never executes.** Diagnostics, completion, navigation, references, and rename
   do not load plugin DLLs or run user source.
 
@@ -270,7 +285,6 @@ The current submission deliberately does not include:
 - direct execution of unrestricted natural-language instructions;
 - a general-purpose AI or embedding model;
 - a custom Visual Studio project system or integrated debugger;
-- a VS Code extension;
 - Vector package/dependency management;
 - automatic loading of arbitrary DLLs or NuGet packages;
 - a plugin security sandbox;
@@ -279,5 +293,6 @@ The current submission deliberately does not include:
 - indexed local/upvalue VM optimization;
 - a production-scale standard library or full standalone IDE.
 
-These boundaries keep the completed interpreter, libraries/plugins, and VM testable and
-stable for the academy submission while leaving clear directions for future work.
+These boundaries keep the completed interpreter, libraries/plugins, VM, and editor clients
+testable and stable for the academy submission while leaving clear directions for future
+work.

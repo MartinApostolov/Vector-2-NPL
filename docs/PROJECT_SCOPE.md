@@ -1,6 +1,6 @@
 # Vector Project Scope
 
-**Status:** Required interpreter MVP, native-library foundation, Standard Library + Linear Algebra v1, Controlled External C# Plugin Support v1, Bytecode Compiler and Virtual Machine v1, and Visual Studio Community 2026 Extension v1 are complete; later extensions remain planned below.
+**Status:** Required interpreter MVP, native-library foundation, Standard Library + Linear Algebra v1, Controlled External C# Plugin Support v1, Bytecode Compiler and Virtual Machine v1, Visual Studio Community 2026 Extension v1, and Visual Studio Code Extension v1 are complete; later extensions remain planned below.
 
 ### Final submission status
 
@@ -13,10 +13,10 @@
 - External C# plugin support
 - Bytecode compiler and VM
 - Visual Studio Community 2026 extension
+- Visual Studio Code extension
 
 **Future:**
 
-- VS Code extension reusing the shared language server and execution host
 - Package/dependency management if useful
 - Experimental natural-language translation
 
@@ -320,8 +320,9 @@ optimization are not part of this completed phase. Locals and closures currently
 existing environment model for semantic correctness; they may later be optimized to slots
 or upvalues without changing Vector-language behavior.
 
-The Visual Studio Community extension described in Section 3.6 is complete on the
-`visual-studio-extension` branch.
+The Visual Studio Community extension described in Section 3.6 and the VS Code extension
+described in Section 3.7 are both complete and reuse the same editor-independent analysis,
+language-server, and execution infrastructure.
 
 ### 3.6 Visual Studio Community Extension
 
@@ -344,12 +345,43 @@ language implementation. Static analysis never executes source or loads plugins.
 also allows a future natural-language layer to generate Vector code outside either
 editor, display/analyze it for inspection, and leave execution as an explicit action.
 
-A custom Visual Studio project system, integrated debugger, package manager, VS Code
-client, and NPL translator are outside this completed extension phase. See
+A custom Visual Studio project system, integrated debugger, package manager, and NPL
+translator are outside this completed extension phase. See
 [VISUAL_STUDIO_EXTENSION.md](VISUAL_STUDIO_EXTENSION.md) for the exact feature and
 limitation list.
 
-### 3.7 Package and Dependency Management
+### 3.7 Visual Studio Code Extension
+
+**Visual Studio Code Extension v1 is complete.** It provides an installable VSIX while
+reusing the same C# analysis, language-server, and execution infrastructure as the Visual
+Studio extension rather than implementing a second Vector language stack.
+
+The completed v1 extension includes:
+
+- `.vec` file recognition, TextMate syntax highlighting, indentation, bracket matching, and comments;
+- live lexer/parser diagnostics through the shared stdio language server;
+- completion, hover, document symbols, local-module intelligence, definition, signature help,
+  Find All References, and conservative Rename;
+- explicit commands to run the current in-memory buffer with the interpreter or VM and to
+  disassemble VM bytecode without executing it;
+- output shown through a dedicated Vector output channel;
+- configurable execution/runtime settings and shared handling for local modules;
+- automated TypeScript/unit tests, real language-server/execution-host process tests,
+  Extension Development Host coverage, VSIX packaging, package-content auditing, and an
+  installed-extension acceptance harness.
+
+`Vector.VSCode` is a thin TypeScript client using `vscode-languageclient` over stdio. It
+launches the packaged `Vector.LanguageServer` and `Vector.ExecutionHost` through `dotnet`,
+while editor-independent language behavior remains in the shared C# projects. The VS Code
+and Visual Studio clients also keep their TextMate grammar and language configuration
+aligned.
+
+The VS Code extension is framework-dependent and therefore requires the .NET 8 runtime
+with `dotnet` available on `PATH`; the VSIX contains the Vector managed payload but not the
+.NET runtime itself. See [VSCODE_EXTENSION.md](VSCODE_EXTENSION.md) for exact build,
+packaging, installation, testing, and limitation details.
+
+### 3.8 Package and Dependency Management
 
 Package management should be considered only after external Vector/C# libraries
 have a stable loading and compatibility model.
@@ -361,7 +393,7 @@ A future package system could provide:
 - Version information and compatibility rules
 - Predictable local dependency resolution
 - Installation or restoration of approved Vector packages
-- Integration with the CLI and future Visual Studio tooling
+- Integration with the CLI and future editor tooling
 
 NuGet may still be used internally by the C# implementation of Vector or its
 native libraries. Directly treating arbitrary NuGet packages as automatically
@@ -445,7 +477,8 @@ The required interpreter MVP is complete. Post-MVP status and remaining priority
    runtime values, callable contracts, module system, and library boundary.
 7. **Complete:** Visual Studio Community 2026 extension using the shared analysis,
    stdio language server, and isolated execution host.
-8. **Future:** build a VS Code client over the same editor-independent services.
+8. **Complete:** Visual Studio Code extension using the same editor-independent
+   analysis, stdio language server, execution protocol, and execution host.
 9. **Future:** add package/dependency management if the external library ecosystem
    makes it useful.
 10. **Future:** prototype experimental natural-language translation last, targeting
