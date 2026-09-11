@@ -9,6 +9,14 @@ description = "Model-independent research harness for the Vector NPL semantic pr
 requires-python = ">=3.11"
 dependencies = []
 
+[project.optional-dependencies]
+p05 = [
+    "torch==2.14.0",
+    "transformers==5.16.1",
+    "sentencepiece==0.2.2",
+    "safetensors==0.8.0",
+]
+
 [project.scripts]
 vector-npl-research = "vector_npl_research.cli:main"
 

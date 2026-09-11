@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "phase": "P05",
+  "model": {
+    "id": "google/flan-t5-small",
+    "revision": "0fc9ddf78a1e988dac52e2dac162b0ede4fd74ab",
+    "device": "cpu",
+    "dtype": "float32",
+    "useSafetensors": true,
+    "trustRemoteCode": false
+  },
+  "prompt": {
+    "version": "p05-comparison-v3",
+    "template": "prompts/comparison_p05_v3.txt",
+    "conditions": {
+      "zero-shot": {
+        "demonstrationIds": []
+      },
+      "few-shot-2": {
+        "demonstrationIds": [
+          "p04-train-gt-01-01",
+          "p04-train-gte-01-01"
+        ]
+      }
+    }
+  },
+  "generation": {
+    "doSample": false,
+    "numBeams": 1,
+    "maxNewTokens": 128
+  },
+  "canonicalSeed": 1234
+}

@@ -1,0 +1,32 @@
+Convert the request to comparison JSON. Return JSON only.
+
+Kinds:
+GT = greater than
+GTE = greater than or equal to
+LT = less than
+LTE = less than or equal to
+EQ = equal
+NEQ = not equal
+
+Supported output:
+{"outcome":"semantic","semantic":{"type":"comparison","kind":K,"left":L,"right":R}}
+
+L and R:
+{"type":"identifier","name":"NAME"}
+{"type":"numberLiteral","value":NUMBER}
+{"type":"textLiteral","value":"TEXT"}
+{"type":"booleanLiteral","value":BOOL}
+{"type":"currentItem"}
+BOOL is true or false.
+
+Preserve names and literal values exactly.
+Use currentItem only for the current item.
+
+For ambiguous, approximate, uncertain, incomplete, or unsupported requests:
+{"outcome":"reject"}
+
+No prose, Markdown, or code fences.
+
+{{DEMONSTRATIONS}}
+Request: {{INPUT}}
+Output:
