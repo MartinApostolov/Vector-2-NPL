@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "dataset": "vector-npl-comparison-training-v1",
+  "language": "en",
+  "modelOutputContract": "p03-v1",
+  "files": {
+    "comparison_training.jsonl": {
+      "role": "training",
+      "caseCount": 1260,
+      "counts": {
+        "EQ": 180,
+        "GT": 180,
+        "GTE": 180,
+        "LT": 180,
+        "LTE": 180,
+        "NEQ": 180,
+        "REJECT": 180
+      },
+      "sha256": "32c44fbb4c29618c9b1e680a9140a9ae1d55efb81d9e173dcce04f364fff1b9d"
+    },
+    "comparison_training_development.jsonl": {
+      "role": "training-development",
+      "caseCount": 210,
+      "counts": {
+        "EQ": 30,
+        "GT": 30,
+        "GTE": 30,
+        "LT": 30,
+        "LTE": 30,
+        "NEQ": 30,
+        "REJECT": 30
+      },
+      "sha256": "ac1ffd374434aead0ed635fa57f54730fab4a879ba7d623ab20ad19248c2a42f"
+    }
+  },
+  "splitPolicy": {
+    "phraseFamiliesDisjoint": true,
+    "exactInputsDisjoint": true,
+    "identifiersAndLiteralPoolsIntentionallyMostlyDisjoint": true,
+    "p02DevelopmentExactInputOverlap": 0,
+    "p02DevelopmentSemanticTemplateOverlap": 0,
+    "p02SealedGateConsultedForDatasetConstruction": false
+  },
+  "generation": {
+    "method": "deterministic curated phrase-family expansion",
+    "randomSeed": null,
+    "targetOutput": "strict P03 model-output envelope"
+  },
+  "hashContract": {
+    "algorithm": "SHA-256",
+    "encoding": "UTF-8 without BOM",
+    "lineEndings": "Normalize CRLF and CR to LF",
+    "terminalNewline": "Exactly one LF"
+  }
+}
