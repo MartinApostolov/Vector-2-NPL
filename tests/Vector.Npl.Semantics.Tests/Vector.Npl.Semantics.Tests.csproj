@@ -21,4 +21,16 @@
     <ProjectReference Include="..\..\src\Vector.Npl.Semantics\Vector.Npl.Semantics.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\research\npl\benchmarks\comparisons\comparison_development.jsonl"
+          Link="BenchmarkData\comparison_development.jsonl"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\research\npl\benchmarks\comparisons\comparison_gate_sealed.jsonl"
+          Link="BenchmarkData\comparison_gate_sealed.jsonl"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\research\npl\benchmarks\comparisons\benchmark_manifest.json"
+          Link="BenchmarkData\benchmark_manifest.json"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

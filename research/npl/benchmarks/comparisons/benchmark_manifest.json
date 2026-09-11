@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "benchmark": "vector-npl-comparison-proof",
+  "language": "en",
+  "files": {
+    "comparison_development.jsonl": {
+      "role": "development",
+      "caseCount": 60,
+      "counts": {
+        "EQ": 6,
+        "GT": 8,
+        "GTE": 10,
+        "LT": 8,
+        "LTE": 10,
+        "NEQ": 6,
+        "REJECT": 12
+      },
+      "sha256": "42b64a251fb842b541f42921b5137c4956d92c7a7fd8cfb1ee6d596b568f15b7"
+    },
+    "comparison_gate_sealed.jsonl": {
+      "role": "sealed-gate",
+      "caseCount": 72,
+      "counts": {
+        "EQ": 10,
+        "GT": 10,
+        "GTE": 10,
+        "LT": 10,
+        "LTE": 10,
+        "NEQ": 10,
+        "REJECT": 12
+      },
+      "sha256": "26cb935530866054fdbbaf026d96cd7c79dc83fe70e514669247ca30bdb077c9"
+    }
+  },
+  "policy": {
+    "developmentMayInfluenceExperiments": true,
+    "sealedGateMayInfluenceExperimentsBeforeP07": false,
+    "failedSealedGateBecomesDevelopmentEvidence": true,
+    "newSealedGateRequiredAfterGateDrivenChanges": true
+  },
+  "hashContract": {
+    "algorithm": "SHA-256",
+    "encoding": "UTF-8 without BOM",
+    "lineEndings": "Normalize CRLF and CR to LF",
+    "terminalNewline": "Exactly one LF"
+  }
+}
