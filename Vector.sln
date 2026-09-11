@@ -60,6 +60,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.ExecutionProtocol", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.VisualStudio.Tests", "tests\Vector.VisualStudio.Tests\Vector.VisualStudio.Tests.csproj", "{7992BA68-B9A7-41FC-AC3D-62F361B8FFEE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.Npl.Semantics", "src\Vector.Npl.Semantics\Vector.Npl.Semantics.csproj", "{DF4A105B-B553-4B0A-9D17-86A239A90121}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vector.Npl.Semantics.Tests", "tests\Vector.Npl.Semantics.Tests\Vector.Npl.Semantics.Tests.csproj", "{12036008-6A50-47CE-A181-821492248789}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -183,6 +187,14 @@ Global
 		{7992BA68-B9A7-41FC-AC3D-62F361B8FFEE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7992BA68-B9A7-41FC-AC3D-62F361B8FFEE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7992BA68-B9A7-41FC-AC3D-62F361B8FFEE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DF4A105B-B553-4B0A-9D17-86A239A90121}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DF4A105B-B553-4B0A-9D17-86A239A90121}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DF4A105B-B553-4B0A-9D17-86A239A90121}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DF4A105B-B553-4B0A-9D17-86A239A90121}.Release|Any CPU.Build.0 = Release|Any CPU
+		{12036008-6A50-47CE-A181-821492248789}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{12036008-6A50-47CE-A181-821492248789}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{12036008-6A50-47CE-A181-821492248789}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{12036008-6A50-47CE-A181-821492248789}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
