@@ -26,3 +26,13 @@ packages/
 # OS/editor noise
 .DS_Store
 Thumbs.db
+
+# Python research artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+research/npl/.venv/
+research/npl/runs/
+research/npl/.cache/
+research/npl/build/
+research/npl/dist/

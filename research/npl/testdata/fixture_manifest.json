@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "benchmark": "vector-npl-p03-synthetic-fixture",
+  "language": "en",
+  "files": {
+    "fixture_benchmark.jsonl": {
+      "role": "development",
+      "caseCount": 3,
+      "counts": {
+        "GT": 1,
+        "GTE": 1,
+        "REJECT": 1
+      },
+      "sha256": "c60e4034ccd51bd1f712f018b3e79562eff17a72fc3f3f5241c106f29f08cb85"
+    }
+  },
+  "policy": {
+    "developmentMayInfluenceExperiments": true,
+    "sealedGateMayInfluenceExperimentsBeforeP07": false,
+    "failedSealedGateBecomesDevelopmentEvidence": true,
+    "newSealedGateRequiredAfterGateDrivenChanges": true
+  },
+  "hashContract": {
+    "algorithm": "SHA-256",
+    "encoding": "UTF-8 without BOM",
+    "lineEndings": "Normalize CRLF and CR to LF",
+    "terminalNewline": "Exactly one LF"
+  }
+}

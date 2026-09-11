@@ -1,0 +1,3 @@
+{"id":"fixture-gt","language":"en","input":"score is greater than 10.","expectation":"semantic","expected":{"type":"comparison","kind":"GT","left":{"type":"identifier","name":"score"},"right":{"type":"numberLiteral","value":10}},"tags":["fixture","GT"]}
+{"id":"fixture-gte","language":"en","input":"score is at least 10.","expectation":"semantic","expected":{"type":"comparison","kind":"GTE","left":{"type":"identifier","name":"score"},"right":{"type":"numberLiteral","value":10}},"tags":["fixture","GTE"]}
+{"id":"fixture-reject","language":"en","input":"score is around 10.","expectation":"reject","rejectReason":"ambiguous-approximation","tags":["fixture","reject"]}
